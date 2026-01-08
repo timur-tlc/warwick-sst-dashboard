@@ -12,6 +12,7 @@ Usage:
 import streamlit as st
 import pandas as pd
 import boto3
+import altair as alt
 from datetime import datetime, timedelta
 import time
 
@@ -160,8 +161,12 @@ def main():
                     df = run_athena_query(query)
                     if not df.empty:
                         df["count"] = pd.to_numeric(df["count"])
-                        df = df.sort_values("count", ascending=False)
-                        st.bar_chart(df.set_index("event_name")["count"])
+                        chart = alt.Chart(df).mark_bar().encode(
+                            x=alt.X("event_name:N", sort="-y", title="Event"),
+                            y=alt.Y("count:Q", title="Count"),
+                            tooltip=["event_name", "count"]
+                        ).properties(height=300)
+                        st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("No events found for selected date range")
 
