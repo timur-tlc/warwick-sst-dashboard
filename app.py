@@ -160,6 +160,7 @@ def main():
                     df = run_athena_query(query)
                     if not df.empty:
                         df["count"] = pd.to_numeric(df["count"])
+                        df = df.sort_values("count", ascending=False)
                         st.bar_chart(df.set_index("event_name")["count"])
                     else:
                         st.info("No events found for selected date range")
