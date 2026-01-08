@@ -188,7 +188,14 @@ def main():
                     if not df.empty:
                         df["count"] = pd.to_numeric(df["count"])
                         df["date"] = pd.to_datetime(df["date"])
-                        st.line_chart(df.set_index("date")["count"])
+                        chart = alt.Chart(df).mark_line(point=True).encode(
+                            x=alt.X("date:T",
+                                    title="Date",
+                                    axis=alt.Axis(format="%b %d", tickCount="day")),
+                            y=alt.Y("count:Q", title="Events"),
+                            tooltip=[alt.Tooltip("date:T", format="%Y-%m-%d"), "count"]
+                        ).properties(height=300)
+                        st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("No events found for selected date range")
 
