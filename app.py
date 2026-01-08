@@ -30,6 +30,12 @@ ATHENA_TABLE = "events"
 ATHENA_OUTPUT_LOCATION = "s3://warwick-com-au-athena-results/"
 ATHENA_WORKGROUP = "primary"
 
+# Helper to extract JSON fields from base64-encoded raw_payload
+# Usage: JSON_FIELD("client_id") -> json_extract_scalar(json_parse(from_utf8(from_base64(raw_payload))), '$.client_id')
+def json_field(field_name: str) -> str:
+    """Generate Athena SQL to extract a field from base64-encoded JSON raw_payload."""
+    return f"json_extract_scalar(json_parse(from_utf8(from_base64(raw_payload))), '$.{field_name}')"
+
 
 @st.cache_resource
 def get_athena_client():
@@ -187,8 +193,8 @@ def main():
             query = f"""
             SELECT
                 COUNT(*) as total_events,
-                COUNT(DISTINCT client_id) as unique_clients,
-                COUNT(DISTINCT ga_session_id) as unique_sessions
+                COUNT(DISTINCT {json_field('client_id')}) as unique_clients,
+                COUNT(DISTINCT {json_field('ga_session_id')}) as unique_sessions
             FROM {ATHENA_TABLE}
             WHERE timestamp >= '{start_ts}'
               AND timestamp <= '{end_ts}'
@@ -224,9 +230,9 @@ def main():
             SELECT
                 timestamp,
                 event_name,
-                page_location,
-                client_id,
-                ga_session_id
+                {json_field('page_location')} as page_location,
+                {json_field('client_id')} as client_id,
+                {json_field('ga_session_id')} as ga_session_id
             FROM {ATHENA_TABLE}
             WHERE timestamp >= '{start_ts}'
               AND timestamp <= '{end_ts}'
@@ -242,8 +248,14 @@ def main():
             st.subheader("Raw Data Explorer")
             st.markdown("Run custom Athena queries against the SST events table.")
 
-            # Default query
-            default_query = f"""SELECT *
+            # Default query - show how to extract fields from base64-encoded raw_payload
+            default_query = f"""SELECT
+    timestamp,
+    event_name,
+    ip_address,
+    json_extract_scalar(json_parse(from_utf8(from_base64(raw_payload))), '$.client_id') as client_id,
+    json_extract_scalar(json_parse(from_utf8(from_base64(raw_payload))), '$.ga_session_id') as ga_session_id,
+    json_extract_scalar(json_parse(from_utf8(from_base64(raw_payload))), '$.page_location') as page_location
 FROM {ATHENA_TABLE}
 WHERE timestamp >= '{start_ts}'
   AND timestamp <= '{end_ts}'
