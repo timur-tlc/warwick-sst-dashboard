@@ -191,8 +191,8 @@ def main():
                         chart = alt.Chart(df).mark_line(point=True).encode(
                             x=alt.X("date:T",
                                     title="Date",
-                                    axis=alt.Axis(format="%b %d", tickCount="day")),
-                            y=alt.Y("count:Q", title="Events"),
+                                    axis=alt.Axis(format="%b %d", tickCount="day", ticks=True, tickSize=8)),
+                            y=alt.Y("count:Q", title="Events", axis=alt.Axis(ticks=True, tickSize=8)),
                             tooltip=[alt.Tooltip("date:T", format="%Y-%m-%d"), "count"]
                         ).properties(height=300)
                         st.altair_chart(chart, use_container_width=True)
