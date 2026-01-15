@@ -141,6 +141,68 @@ def main():
         with tab1:
             st.subheader("Event Overview")
 
+            # AU vs NZ Comparison (top section)
+            st.markdown("#### AU vs NZ Comparison")
+            query = f"""
+            SELECT
+                CASE
+                    WHEN {json_field('page_location')} LIKE '%warwick.com.au%' THEN 'AU'
+                    WHEN {json_field('page_location')} LIKE '%warwick.co.nz%' THEN 'NZ'
+                    ELSE 'Other'
+                END as region,
+                COUNT(*) as events,
+                COUNT(DISTINCT {json_field('ga_session_id')}) as sessions,
+                COUNT(CASE WHEN event_name = 'page_view' THEN 1 END) as pageviews
+            FROM {ATHENA_TABLE}
+            WHERE timestamp >= '{start_ts}'
+              AND timestamp <= '{end_ts}'
+            GROUP BY 1
+            ORDER BY events DESC
+            """
+            with st.spinner("Loading AU vs NZ comparison..."):
+                df = run_athena_query(query)
+                if not df.empty:
+                    df["events"] = pd.to_numeric(df["events"])
+                    df["sessions"] = pd.to_numeric(df["sessions"])
+                    df["pageviews"] = pd.to_numeric(df["pageviews"])
+
+                    col1, col2, col3 = st.columns(3)
+
+                    # Metrics by region
+                    au_row = df[df["region"] == "AU"]
+                    nz_row = df[df["region"] == "NZ"]
+
+                    au_sessions = int(au_row["sessions"].iloc[0]) if not au_row.empty else 0
+                    nz_sessions = int(nz_row["sessions"].iloc[0]) if not nz_row.empty else 0
+                    au_pageviews = int(au_row["pageviews"].iloc[0]) if not au_row.empty else 0
+                    nz_pageviews = int(nz_row["pageviews"].iloc[0]) if not nz_row.empty else 0
+                    au_events = int(au_row["events"].iloc[0]) if not au_row.empty else 0
+                    nz_events = int(nz_row["events"].iloc[0]) if not nz_row.empty else 0
+
+                    with col1:
+                        st.metric("AU Sessions", f"{au_sessions:,}")
+                        st.metric("NZ Sessions", f"{nz_sessions:,}")
+                    with col2:
+                        st.metric("AU Pageviews", f"{au_pageviews:,}")
+                        st.metric("NZ Pageviews", f"{nz_pageviews:,}")
+                    with col3:
+                        st.metric("AU Events", f"{au_events:,}")
+                        st.metric("NZ Events", f"{nz_events:,}")
+
+                    # Bar chart comparison
+                    chart_df = df[df["region"].isin(["AU", "NZ"])]
+                    if not chart_df.empty:
+                        chart = alt.Chart(chart_df).mark_bar().encode(
+                            x=alt.X("region:N", title="Region"),
+                            y=alt.Y("pageviews:Q", title="Pageviews"),
+                            color=alt.Color("region:N", scale=alt.Scale(domain=["AU", "NZ"], range=["#1f77b4", "#ff7f0e"])),
+                            tooltip=["region", "pageviews", "sessions", "events"]
+                        ).properties(height=200)
+                        st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.info("No events found for selected date range")
+
+            st.markdown("---")
             col1, col2 = st.columns(2)
 
             with col1:
@@ -171,37 +233,132 @@ def main():
                         st.info("No events found for selected date range")
 
             with col2:
-                # Events over time
-                st.markdown("#### Events Over Time")
+                # Daily traffic trends
+                st.markdown("#### Traffic Trends (Daily)")
                 query = f"""
                 SELECT
                     DATE(from_iso8601_timestamp(timestamp)) as date,
+                    CASE
+                        WHEN {json_field('page_location')} LIKE '%warwick.com.au%' THEN 'AU'
+                        WHEN {json_field('page_location')} LIKE '%warwick.co.nz%' THEN 'NZ'
+                        ELSE 'Other'
+                    END as region,
                     COUNT(*) as count
                 FROM {ATHENA_TABLE}
                 WHERE timestamp >= '{start_ts}'
                   AND timestamp <= '{end_ts}'
-                GROUP BY DATE(from_iso8601_timestamp(timestamp))
+                GROUP BY 1, 2
                 ORDER BY date
                 """
-                with st.spinner("Loading daily counts..."):
+                with st.spinner("Loading daily trends..."):
                     df = run_athena_query(query)
                     if not df.empty:
                         df["count"] = pd.to_numeric(df["count"])
                         df["date"] = pd.to_datetime(df["date"])
+                        df = df[df["region"].isin(["AU", "NZ"])]
                         chart = alt.Chart(df).mark_line(point=True).encode(
                             x=alt.X("date:T",
                                     title="Date",
                                     axis=alt.Axis(format="%b %d", tickCount="day", ticks=True, tickSize=8)),
                             y=alt.Y("count:Q", title="Events", axis=alt.Axis(ticks=True, tickSize=8)),
-                            tooltip=[alt.Tooltip("date:T", format="%Y-%m-%d"), "count"]
+                            color=alt.Color("region:N", scale=alt.Scale(domain=["AU", "NZ"], range=["#1f77b4", "#ff7f0e"])),
+                            tooltip=[alt.Tooltip("date:T", format="%Y-%m-%d"), "region", "count"]
                         ).properties(height=300)
                         st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("No events found for selected date range")
 
+            st.markdown("---")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Top pages by domain
+                st.markdown("#### Top Pages (AU)")
+                query = f"""
+                SELECT
+                    regexp_extract({json_field('page_location')}, 'warwick\\.com\\.au(/[^?]*)', 1) as page_path,
+                    COUNT(*) as pageviews
+                FROM {ATHENA_TABLE}
+                WHERE timestamp >= '{start_ts}'
+                  AND timestamp <= '{end_ts}'
+                  AND {json_field('page_location')} LIKE '%warwick.com.au%'
+                  AND event_name = 'page_view'
+                GROUP BY 1
+                ORDER BY pageviews DESC
+                LIMIT 10
+                """
+                with st.spinner("Loading top AU pages..."):
+                    df = run_athena_query(query)
+                    if not df.empty:
+                        df["pageviews"] = pd.to_numeric(df["pageviews"])
+                        df["page_path"] = df["page_path"].fillna("/")
+                        st.dataframe(df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No AU pageviews found")
+
+            with col2:
+                st.markdown("#### Top Pages (NZ)")
+                query = f"""
+                SELECT
+                    regexp_extract({json_field('page_location')}, 'warwick\\.co\\.nz(/[^?]*)', 1) as page_path,
+                    COUNT(*) as pageviews
+                FROM {ATHENA_TABLE}
+                WHERE timestamp >= '{start_ts}'
+                  AND timestamp <= '{end_ts}'
+                  AND {json_field('page_location')} LIKE '%warwick.co.nz%'
+                  AND event_name = 'page_view'
+                GROUP BY 1
+                ORDER BY pageviews DESC
+                LIMIT 10
+                """
+                with st.spinner("Loading top NZ pages..."):
+                    df = run_athena_query(query)
+                    if not df.empty:
+                        df["pageviews"] = pd.to_numeric(df["pageviews"])
+                        df["page_path"] = df["page_path"].fillna("/")
+                        st.dataframe(df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No NZ pageviews found")
+
+            # Device breakdown
+            st.markdown("---")
+            st.markdown("#### Device Breakdown")
+            query = f"""
+            SELECT
+                CASE
+                    WHEN {json_field('page_location')} LIKE '%warwick.com.au%' THEN 'AU'
+                    WHEN {json_field('page_location')} LIKE '%warwick.co.nz%' THEN 'NZ'
+                    ELSE 'Other'
+                END as region,
+                COALESCE({json_field('device_category')}, 'unknown') as device,
+                COUNT(DISTINCT {json_field('ga_session_id')}) as sessions
+            FROM {ATHENA_TABLE}
+            WHERE timestamp >= '{start_ts}'
+              AND timestamp <= '{end_ts}'
+            GROUP BY 1, 2
+            ORDER BY sessions DESC
+            """
+            with st.spinner("Loading device breakdown..."):
+                df = run_athena_query(query)
+                if not df.empty:
+                    df["sessions"] = pd.to_numeric(df["sessions"])
+                    df = df[df["region"].isin(["AU", "NZ"])]
+                    if not df.empty:
+                        chart = alt.Chart(df).mark_bar().encode(
+                            x=alt.X("region:N", title="Region"),
+                            y=alt.Y("sessions:Q", title="Sessions"),
+                            color=alt.Color("device:N", title="Device"),
+                            tooltip=["region", "device", "sessions"]
+                        ).properties(height=250)
+                        st.altair_chart(chart, use_container_width=True)
+                    else:
+                        st.info("No device data found")
+                else:
+                    st.info("No device data found")
+
             # Key metrics
             st.markdown("---")
-            st.markdown("#### Key Metrics")
+            st.markdown("#### Key Metrics (Total)")
 
             query = f"""
             SELECT
