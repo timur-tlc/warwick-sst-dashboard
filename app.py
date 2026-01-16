@@ -198,7 +198,7 @@ def main():
                             color=alt.Color("region:N", scale=alt.Scale(domain=["AU", "NZ"], range=["#1f77b4", "#ff7f0e"])),
                             tooltip=["region", "pageviews", "sessions", "events"]
                         ).properties(height=200)
-                        st.altair_chart(chart, use_container_width=True)
+                        st.altair_chart(chart, width="stretch")
                 else:
                     st.info("No events found for selected date range")
 
@@ -228,7 +228,7 @@ def main():
                             y=alt.Y("count:Q", title="Count"),
                             tooltip=["event_name", "count"]
                         ).properties(height=300)
-                        st.altair_chart(chart, use_container_width=True)
+                        st.altair_chart(chart, width="stretch")
                     else:
                         st.info("No events found for selected date range")
 
@@ -264,7 +264,7 @@ def main():
                             color=alt.Color("region:N", scale=alt.Scale(domain=["AU", "NZ"], range=["#1f77b4", "#ff7f0e"])),
                             tooltip=[alt.Tooltip("date:T", format="%Y-%m-%d"), "region", "count"]
                         ).properties(height=300)
-                        st.altair_chart(chart, use_container_width=True)
+                        st.altair_chart(chart, width="stretch")
                     else:
                         st.info("No events found for selected date range")
 
@@ -292,7 +292,7 @@ def main():
                     if not df.empty:
                         df["pageviews"] = pd.to_numeric(df["pageviews"])
                         df["page_path"] = df["page_path"].fillna("/")
-                        st.dataframe(df, use_container_width=True, hide_index=True)
+                        st.dataframe(df, width="stretch", hide_index=True)
                     else:
                         st.info("No AU pageviews found")
 
@@ -316,7 +316,7 @@ def main():
                     if not df.empty:
                         df["pageviews"] = pd.to_numeric(df["pageviews"])
                         df["page_path"] = df["page_path"].fillna("/")
-                        st.dataframe(df, use_container_width=True, hide_index=True)
+                        st.dataframe(df, width="stretch", hide_index=True)
                     else:
                         st.info("No NZ pageviews found")
 
@@ -350,7 +350,7 @@ def main():
                             color=alt.Color("device:N", title="Device"),
                             tooltip=["region", "device", "sessions"]
                         ).properties(height=250)
-                        st.altair_chart(chart, use_container_width=True)
+                        st.altair_chart(chart, width="stretch")
                     else:
                         st.info("No device data found")
                 else:
@@ -412,7 +412,7 @@ def main():
             """
             with st.spinner("Loading events..."):
                 df = run_athena_query(query)
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width="stretch")
 
         with tab3:
             st.subheader("Raw Data Explorer")
@@ -443,7 +443,7 @@ LIMIT 10"""
                     try:
                         df = run_athena_query(user_query, timeout_seconds=120)
                         st.success(f"Query returned {len(df)} rows")
-                        st.dataframe(df, use_container_width=True)
+                        st.dataframe(df, width="stretch")
 
                         # Download button
                         csv = df.to_csv(index=False)
