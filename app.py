@@ -24,6 +24,36 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Custom CSS for larger fonts
+st.markdown("""
+<style>
+    /* Increase base font size */
+    html, body, [class*="css"] {
+        font-size: 18px;
+    }
+    /* Larger headers */
+    h1 { font-size: 2.5rem !important; }
+    h2 { font-size: 2rem !important; }
+    h3 { font-size: 1.75rem !important; }
+    h4 { font-size: 1.5rem !important; }
+    /* Larger metrics */
+    [data-testid="stMetricValue"] {
+        font-size: 2.5rem !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 1.1rem !important;
+    }
+    /* Larger table text */
+    .stDataFrame {
+        font-size: 1rem !important;
+    }
+    /* Sidebar text */
+    .css-1d391kg, .st-emotion-cache-1d391kg {
+        font-size: 1rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Constants
 AWS_REGION = "ap-southeast-2"
 ATHENA_DATABASE = "warwick_weave_sst_events"
@@ -136,7 +166,7 @@ def main():
             test_df = run_athena_query("SELECT 1 as test", timeout_seconds=30)
 
         # Layout with tabs
-        tab1, tab2, tab3 = st.tabs(["📈 Overview", "🎯 Events", "🔍 Raw Data"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Overview", "🔄 SST vs Direct", "🎯 Events", "🔍 Raw Data"])
 
         with tab1:
             st.subheader("Event Overview")
@@ -378,6 +408,79 @@ def main():
                     m3.metric("Unique Sessions", f"{int(df['unique_sessions'].iloc[0]):,}")
 
         with tab2:
+            st.subheader("SST vs Direct Comparison")
+            st.markdown("""
+            This tab compares Server-Side Tracking (SST) data with Direct GA4 tracking.
+            SST sends data through `sst.warwick.com.au` (first-party), while Direct sends to `google-analytics.com` (third-party).
+            """)
+
+            # Key findings from analysis
+            st.markdown("#### Key Findings (Jan 2026 Analysis)")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Dual-Property Lift", "+14.5%", help="Additional unique sessions captured by running both SST and Direct")
+            with col2:
+                st.metric("SST-Only Sessions", "17.4%", help="Sessions captured ONLY by SST (ad-blocker bypass)")
+            with col3:
+                st.metric("Direct-Only Sessions", "19.3%", help="Sessions captured ONLY by Direct (corporate firewalls blocking SST domain)")
+
+            st.markdown("---")
+            st.markdown("#### Why Run Both?")
+
+            st.markdown("""
+            | Scenario | SST Captures | Direct Captures |
+            |----------|--------------|-----------------|
+            | Ad-blocker blocks `google-analytics.com` | ✅ Yes | ❌ No |
+            | Corporate firewall blocks `sst.warwick.com.au` | ❌ No | ✅ Yes |
+            | Safari ITP (7-day cookie limit) | ✅ First-party cookies (longer) | ⚠️ Limited |
+            | Normal browsing | ✅ Yes | ✅ Yes |
+
+            **Result:** Running both captures ~14.5% more unique sessions than either system alone.
+            """)
+
+            st.markdown("---")
+            st.markdown("#### SST Event Capture Advantage")
+
+            # Show events where SST captures more
+            advantages = pd.DataFrame({
+                "Event Type": ["scroll", "view_item", "page_view", "add_to_cart"],
+                "SST vs Direct": ["+9.8%", "+1.6%", "+0.5%", "Parity"],
+                "Reason": [
+                    "Ad-blockers block scroll tracking scripts",
+                    "Product view tracking often blocked",
+                    "Slight advantage from first-party cookies",
+                    "Both capture equally"
+                ]
+            })
+            st.dataframe(advantages, use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+            st.markdown("#### Current SST Data (from Athena)")
+
+            # Show SST-specific stats
+            query = f"""
+            SELECT
+                COUNT(*) as total_events,
+                COUNT(DISTINCT {json_field('ga_session_id')}) as unique_sessions,
+                COUNT(DISTINCT {json_field('client_id')}) as unique_clients,
+                COUNT(DISTINCT DATE(from_iso8601_timestamp(timestamp))) as days_of_data
+            FROM {ATHENA_TABLE}
+            WHERE timestamp >= '{start_ts}'
+              AND timestamp <= '{end_ts}'
+            """
+            with st.spinner("Loading SST stats..."):
+                df = run_athena_query(query)
+                if not df.empty:
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("SST Events", f"{int(df['total_events'].iloc[0]):,}")
+                    c2.metric("SST Sessions", f"{int(df['unique_sessions'].iloc[0]):,}")
+                    c3.metric("SST Clients", f"{int(df['unique_clients'].iloc[0]):,}")
+                    c4.metric("Days of Data", df['days_of_data'].iloc[0])
+
+            st.info("💡 **Note:** This dashboard shows SST data only. For full Direct comparison, see the GA4 properties directly or the validation reports.")
+
+        with tab3:
             st.subheader("Event Details")
 
             # Event type filter
@@ -414,7 +517,7 @@ def main():
                 df = run_athena_query(query)
                 st.dataframe(df, use_container_width=True)
 
-        with tab3:
+        with tab4:
             st.subheader("Raw Data Explorer")
             st.markdown("Run custom Athena queries against the SST events table.")
 
