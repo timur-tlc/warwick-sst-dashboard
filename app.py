@@ -29,30 +29,51 @@ st.markdown("""
 <style>
     /* Increase base font size */
     html, body, [class*="css"] {
-        font-size: 18px;
+        font-size: 20px;
     }
     /* Larger headers */
-    h1 { font-size: 2.5rem !important; }
-    h2 { font-size: 2rem !important; }
-    h3 { font-size: 1.75rem !important; }
-    h4 { font-size: 1.5rem !important; }
+    h1 { font-size: 3rem !important; }
+    h2 { font-size: 2.5rem !important; }
+    h3 { font-size: 2rem !important; }
+    h4 { font-size: 1.75rem !important; }
     /* Larger metrics */
     [data-testid="stMetricValue"] {
-        font-size: 2.5rem !important;
+        font-size: 3rem !important;
     }
     [data-testid="stMetricLabel"] {
-        font-size: 1.1rem !important;
+        font-size: 1.25rem !important;
     }
     /* Larger table text */
-    .stDataFrame {
-        font-size: 1rem !important;
+    .stDataFrame, .stDataFrame td, .stDataFrame th {
+        font-size: 1.1rem !important;
     }
     /* Sidebar text */
-    .css-1d391kg, .st-emotion-cache-1d391kg {
-        font-size: 1rem !important;
+    .css-1d391kg, .st-emotion-cache-1d391kg, [data-testid="stSidebar"] {
+        font-size: 1.1rem !important;
+    }
+    /* Tab labels */
+    .stTabs [data-baseweb="tab"] {
+        font-size: 1.2rem !important;
+    }
+    /* Markdown text */
+    .stMarkdown, .stMarkdown p {
+        font-size: 1.1rem !important;
+    }
+    /* Selectbox and inputs */
+    .stSelectbox, .stTextInput, .stDateInput {
+        font-size: 1.1rem !important;
+    }
+    /* Info/warning boxes */
+    .stAlert {
+        font-size: 1.1rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Altair chart font configuration
+CHART_FONT_SIZE = 14
+CHART_TITLE_SIZE = 16
+CHART_LABEL_SIZE = 13
 
 # Constants
 AWS_REGION = "ap-southeast-2"
@@ -227,7 +248,13 @@ def main():
                             y=alt.Y("pageviews:Q", title="Pageviews"),
                             color=alt.Color("region:N", scale=alt.Scale(domain=["AU", "NZ"], range=["#1f77b4", "#ff7f0e"])),
                             tooltip=["region", "pageviews", "sessions", "events"]
-                        ).properties(height=200)
+                        ).properties(height=200).configure_axis(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        ).configure_legend(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        )
                         st.altair_chart(chart, use_container_width=True)
                 else:
                     st.info("No events found for selected date range")
@@ -257,7 +284,10 @@ def main():
                             x=alt.X("event_name:N", sort="-y", title="Event"),
                             y=alt.Y("count:Q", title="Count"),
                             tooltip=["event_name", "count"]
-                        ).properties(height=300)
+                        ).properties(height=300).configure_axis(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        )
                         st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("No events found for selected date range")
@@ -293,7 +323,13 @@ def main():
                             y=alt.Y("count:Q", title="Events", axis=alt.Axis(ticks=True, tickSize=8)),
                             color=alt.Color("region:N", scale=alt.Scale(domain=["AU", "NZ"], range=["#1f77b4", "#ff7f0e"])),
                             tooltip=[alt.Tooltip("date:T", format="%Y-%m-%d"), "region", "count"]
-                        ).properties(height=300)
+                        ).properties(height=300).configure_axis(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        ).configure_legend(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        )
                         st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("No events found for selected date range")
@@ -379,7 +415,13 @@ def main():
                             y=alt.Y("sessions:Q", title="Sessions"),
                             color=alt.Color("device:N", title="Device"),
                             tooltip=["region", "device", "sessions"]
-                        ).properties(height=250)
+                        ).properties(height=250).configure_axis(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        ).configure_legend(
+                            labelFontSize=CHART_LABEL_SIZE,
+                            titleFontSize=CHART_TITLE_SIZE
+                        )
                         st.altair_chart(chart, use_container_width=True)
                     else:
                         st.info("No device data found")
