@@ -471,11 +471,13 @@ def main():
 
         with tab2:
             st.subheader("SST vs Direct Comparison")
+            st.info("**Historical Snapshot:** Jan 10-14, 2026 (UTC-aligned, Warwick AU only)")
             st.markdown("""
-            This tab compares Server-Side Tracking (SST) data with Direct GA4 tracking.
-            SST sends data through `sst.warwick.com.au` (first-party), while Direct sends to `google-analytics.com` (third-party).
+            This tab shows a point-in-time comparison between Server-Side Tracking (SST) and Direct GA4 tracking.
+            - **SST:** Events sent through `sst.warwick.com.au` (first-party domain)
+            - **Direct:** Events sent to `google-analytics.com` (third-party domain)
 
-            *Analysis: Jan 10-14, 2026 (UTC-aligned comparison, fully corrected 2026-01-18)*
+            Data sources: BigQuery (GA4 export) and Athena (SST raw events), aligned by UTC timestamp range.
             """)
 
             # Key findings from analysis
@@ -526,29 +528,17 @@ def main():
             st.dataframe(event_comparison, use_container_width=True, hide_index=True)
 
             st.markdown("---")
-            st.markdown("#### Current SST Data (from Athena)")
+            st.markdown("#### Analysis Details")
+            st.markdown("""
+            **Methodology:**
+            - Analysis period: `2026-01-10 00:00:00 UTC` to `2026-01-14 10:54:28 UTC`
+            - Cutoff aligned to Athena's max timestamp for fair comparison
+            - Excluded: `session_start`, `first_visit` (GA4 synthetic events, Direct-only by design)
+            - Excluded: `add_to_cart_click_fallback` (Safari fallback tag)
+            - Session matching: by `ga_session_id` (timestamp-based, ~2% collision rate)
 
-            # Show SST-specific stats
-            query = f"""
-            SELECT
-                COUNT(*) as total_events,
-                COUNT(DISTINCT {json_field('ga_session_id')}) as unique_sessions,
-                COUNT(DISTINCT {json_field('client_id')}) as unique_clients,
-                COUNT(DISTINCT DATE(from_iso8601_timestamp(timestamp))) as days_of_data
-            FROM {ATHENA_TABLE}
-            WHERE timestamp >= '{start_ts}'
-              AND timestamp <= '{end_ts}'
-            """
-            with st.spinner("Loading SST stats..."):
-                df = run_athena_query(query)
-                if not df.empty:
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("SST Events", f"{int(df['total_events'].iloc[0]):,}")
-                    c2.metric("SST Sessions", f"{int(df['unique_sessions'].iloc[0]):,}")
-                    c3.metric("SST Clients", f"{int(df['unique_clients'].iloc[0]):,}")
-                    c4.metric("Days of Data", df['days_of_data'].iloc[0])
-
-            st.info("💡 **Note:** This dashboard shows SST data only. For full Direct comparison, see the GA4 properties directly or the validation reports.")
+            **Validation scripts:** `clients/warwick.com.au/validation/`
+            """)
 
         with tab3:
             st.subheader("Event Details")
