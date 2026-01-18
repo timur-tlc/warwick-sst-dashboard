@@ -71,9 +71,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Altair chart font configuration
-CHART_FONT_SIZE = 14
-CHART_TITLE_SIZE = 16
-CHART_LABEL_SIZE = 13
+CHART_FONT_SIZE = 17
+CHART_TITLE_SIZE = 19
+CHART_LABEL_SIZE = 16
 
 # Constants
 AWS_REGION = "ap-southeast-2"
