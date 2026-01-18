@@ -15,6 +15,7 @@ import boto3
 import altair as alt
 from datetime import datetime, timedelta
 import time
+import subprocess
 
 # Page configuration
 st.set_page_config(
@@ -70,8 +71,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Version - update with each deploy (short git hash)
-VERSION = "a5bda3e"
+# Version - automatically read from git at runtime
+def get_version() -> str:
+    """Get git commit hash. Works on Streamlit Cloud since repo is cloned with .git."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+VERSION = get_version()
 
 # Altair chart font configuration
 CHART_FONT_SIZE = 17
