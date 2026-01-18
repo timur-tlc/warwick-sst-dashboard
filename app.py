@@ -475,7 +475,7 @@ def main():
             This tab compares Server-Side Tracking (SST) data with Direct GA4 tracking.
             SST sends data through `sst.warwick.com.au` (first-party), while Direct sends to `google-analytics.com` (third-party).
 
-            *Analysis: Jan 10-14, 2026 (UTC-aligned comparison, corrected 2026-01-18)*
+            *Analysis: Jan 10-14, 2026 (UTC-aligned comparison, fully corrected 2026-01-18)*
             """)
 
             # Key findings from analysis
@@ -483,13 +483,13 @@ def main():
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Session Overlap", "68.6%", help="Sessions captured by BOTH SST and Direct")
+                st.metric("Session Overlap", "73.9%", help="Sessions captured by BOTH SST and Direct")
             with col2:
-                st.metric("Dual-Property Lift", "+13.8%", help="Additional unique sessions captured by running both SST and Direct vs Direct alone")
+                st.metric("Dual-Property Lift", "+15.1%", help="Additional unique sessions captured by running both SST and Direct vs Direct alone")
             with col3:
-                st.metric("SST-Only Sessions", "12.1%", help="Sessions captured ONLY by SST (ad-blocker bypass)")
+                st.metric("SST-Only Sessions", "13.1%", help="Sessions captured ONLY by SST (ad-blocker bypass)")
             with col4:
-                st.metric("Direct-Only Sessions", "19.3%", help="Sessions captured ONLY by Direct (SST domain blocked by corporate firewalls/proxies)")
+                st.metric("Direct-Only Sessions", "13.0%", help="Sessions captured ONLY by Direct (SST domain blocked by corporate firewalls/proxies)")
 
             st.markdown("---")
             st.markdown("#### Why Run Both?")
@@ -502,25 +502,25 @@ def main():
             | Safari ITP (7-day cookie limit) | ✅ First-party cookies (longer) | ⚠️ Limited |
             | Normal browsing | ✅ Yes | ✅ Yes |
 
-            **Key Insight:** For Warwick's B2B audience, corporate firewalls blocking `sst.warwick.com.au` (19.3%) slightly outweigh ad-blockers blocking `google-analytics.com` (12.1%). Running both captures +13.8% more sessions than Direct alone.
+            **Key Insight:** SST and Direct have nearly equal blind spots (~13% each). SST captures +2.2% more events overall. Running both systems captures +15.1% more unique sessions than Direct alone.
             """)
 
             st.markdown("---")
             st.markdown("#### Event Comparison (SST vs Direct)")
 
-            # Updated event comparison from corrected analysis (2026-01-18)
+            # Event comparison with aligned time ranges (2026-01-18)
             event_comparison = pd.DataFrame({
                 "Event Type": ["page_view", "view_item_list", "view_item", "scroll", "user_engagement", "add_to_cart"],
-                "Direct Events": ["79,548", "47,424", "29,111", "8,231", "10,264", "1,362"],
+                "Direct Events": ["74,981", "44,832", "27,526", "7,667", "9,734", "1,318"],
                 "SST Events": ["74,249", "49,685", "27,539", "7,930", "9,592", "1,316"],
-                "Difference": ["-6.7%", "+4.8%", "-5.4%", "-3.7%", "-6.5%", "-3.4%"],
+                "Difference": ["-1.0%", "+10.8%", "+0.0%", "+3.4%", "-1.5%", "-0.2%"],
                 "Note": [
                     "Near parity",
+                    "SST captures significantly more",
+                    "Parity",
                     "SST captures more (ad-blocker bypass)",
                     "Near parity",
-                    "Near parity",
-                    "Near parity",
-                    "Near parity"
+                    "Parity"
                 ]
             })
             st.dataframe(event_comparison, use_container_width=True, hide_index=True)
