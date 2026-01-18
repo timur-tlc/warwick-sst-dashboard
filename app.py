@@ -14,6 +14,7 @@ import pandas as pd
 import boto3
 import altair as alt
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import time
 import subprocess
 
@@ -637,10 +638,11 @@ LIMIT 10"""
 
     # Footer
     st.markdown("---")
+    brisbane_now = datetime.now(ZoneInfo("Australia/Brisbane"))
     st.markdown(
         "<div style='text-align: center; color: gray;'>"
         f"Warwick SST Dashboard | v{VERSION} | "
-        f"Refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"Refreshed: {brisbane_now.strftime('%Y-%m-%d %H:%M:%S')} AEST"
         "</div>",
         unsafe_allow_html=True
     )
