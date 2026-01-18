@@ -70,6 +70,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Version - update with each deploy (short git hash)
+VERSION = "3602ff4"
+
 # Altair chart font configuration
 CHART_FONT_SIZE = 17
 CHART_TITLE_SIZE = 19
@@ -620,8 +623,8 @@ LIMIT 10"""
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: gray;'>"
-        "Warwick SST Dashboard | Data from AWS Athena | "
-        f"Last refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"Warwick SST Dashboard | v{VERSION} | "
+        f"Refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         "</div>",
         unsafe_allow_html=True
     )
