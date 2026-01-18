@@ -71,7 +71,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Version - update with each deploy (short git hash)
-VERSION = "3602ff4"
+VERSION = "a5bda3e"
 
 # Altair chart font configuration
 CHART_FONT_SIZE = 17
