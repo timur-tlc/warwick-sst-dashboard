@@ -127,6 +127,7 @@ def get_athena_client():
     return boto3.client("athena", region_name=AWS_REGION)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
 def run_athena_query(query: str, timeout_seconds: int = 60) -> pd.DataFrame:
     """Execute an Athena query and return results as a DataFrame."""
     client = get_athena_client()
@@ -201,6 +202,11 @@ def main():
         st.markdown("---")
         st.markdown(f"**Database:** `{ATHENA_DATABASE}`")
         st.markdown(f"**Region:** `{AWS_REGION}`")
+
+        st.markdown("---")
+        if st.button("🔄 Clear Cache", help="Force refresh all data from Athena"):
+            st.cache_data.clear()
+            st.rerun()
 
     # Main content area
     try:
