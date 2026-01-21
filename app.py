@@ -590,7 +590,7 @@ def main():
                     "Device": ["Desktop", "Mobile", "Tablet"],
                     "Direct": [8932, 3582, 166],
                     "SST": [9101, 3508, 163],
-                    "SST Advantage": ["+1.9%", "-2.1%", "-1.8%"]
+                    "Diff": ["+1.9%", "-2.1%", "-1.8%"]
                 })
                 st.dataframe(device_data, use_container_width=True, hide_index=True)
                 st.caption("Desktop shows SST advantage because desktop browsers support ad-blocking extensions; mobile browsers generally don't.")
@@ -601,10 +601,28 @@ def main():
                     "OS": ["Windows", "Macintosh", "iOS", "Android"],
                     "Direct": [6891, 1905, 2757, 937],
                     "SST": [6991, 1959, 2741, 948],
-                    "SST Advantage": ["+1.5%", "+2.8%", "-0.6%", "+1.2%"]
+                    "Diff": ["+1.5%", "+2.8%", "-0.6%", "+1.2%"]
                 })
                 st.dataframe(os_data, use_container_width=True, hide_index=True)
                 st.caption("Mac users show highest SST advantage (+2.8%) - tech-savvy demographic with higher ad-blocker adoption.")
+
+            # Browser comparison
+            st.markdown("**By Browser**")
+            browser_data = pd.DataFrame({
+                "Browser": ["Chrome", "Safari", "Edge", "Firefox", "Samsung Internet"],
+                "Direct": [8382, 3178, 990, 104, 159],
+                "SST": [8216, 3151, 971, 104, 157],
+                "Diff": ["-2.0%", "-0.8%", "-1.9%", "0.0%", "-1.3%"],
+                "Notes": [
+                    "Slight Direct advantage",
+                    "Near parity (ITP affects cookies, not sessions)",
+                    "Slight Direct advantage",
+                    "Perfect parity",
+                    "Near parity"
+                ]
+            })
+            st.dataframe(browser_data, use_container_width=True, hide_index=True)
+            st.caption("Browser-level differences are minimal. The real SST advantage is in ad-blocker bypass (not visible in aggregate browser stats since blocked sessions don't appear in Direct at all).")
 
             # Visual: Device breakdown
             device_chart_data = pd.DataFrame({
@@ -633,31 +651,68 @@ def main():
             # Geographic Analysis
             st.markdown("---")
             st.markdown("#### 🌏 Geographic Analysis")
-            st.markdown("*Understanding the blind spots of each system*")
+            st.markdown("*Session capture comparison by country*")
+
+            # Country comparison table
+            geo_comparison = pd.DataFrame({
+                "Country": ["Australia", "China", "United States", "New Zealand", "India", "Vietnam", "United Kingdom", "Other"],
+                "Direct": [9245, 1102, 312, 287, 198, 142, 89, 152],
+                "SST": [8962, 1269, 308, 279, 169, 100, 83, 149],
+                "Diff": ["-3.1%", "+15.2%", "-1.3%", "-2.8%", "-14.6%", "-29.6%", "-6.7%", "-2.0%"],
+                "Winner": ["Direct", "SST", "≈ Parity", "Direct", "Direct", "Direct", "Direct", "≈ Parity"],
+                "Likely Cause": [
+                    "Corporate networks block SST domain",
+                    "Great Firewall routing favors first-party",
+                    "—",
+                    "Corporate networks",
+                    "ISP-level filtering blocks SST",
+                    "ISP-level filtering blocks SST",
+                    "Corporate networks",
+                    "—"
+                ]
+            })
+            st.dataframe(geo_comparison, use_container_width=True, hide_index=True)
 
             col1, col2 = st.columns(2)
-
             with col1:
-                st.markdown("**Direct-Only Sessions (15.8%)**")
-                st.markdown("*Network allows Google but blocks SST domain*")
-                direct_only_geo = pd.DataFrame({
-                    "Country": ["Australia", "China", "Vietnam", "India", "Brazil", "United States"],
-                    "Sessions": [1075, 545, 60, 60, 58, 44],
-                    "% of Direct-Only": ["49.1%", "24.9%", "2.7%", "2.7%", "2.6%", "2.0%"]
-                })
-                st.dataframe(direct_only_geo, use_container_width=True, hide_index=True)
-                st.caption("Corporate networks and restrictive countries allow well-known Google domains but block unfamiliar first-party domains.")
-
+                st.markdown("""
+                **Where Direct wins:**
+                - 🇦🇺 Australia (-3.1%): Corporate/enterprise networks
+                - 🇻🇳 Vietnam (-29.6%): ISP filtering
+                - 🇮🇳 India (-14.6%): ISP filtering
+                """)
             with col2:
-                st.markdown("**SST-Only Sessions (12.7%)**")
-                st.markdown("*Ad-blocker bypass wins*")
-                sst_only_geo = pd.DataFrame({
-                    "Country": ["Australia", "China", "United States", "India", "Ireland", "Vietnam"],
-                    "Sessions": [792, 712, 40, 31, 22, 18],
-                    "% of SST-Only": ["46.4%", "41.7%", "2.3%", "1.8%", "1.3%", "1.1%"]
-                })
-                st.dataframe(sst_only_geo, use_container_width=True, hide_index=True)
-                st.caption("Desktop-heavy (73.4%), consistent with ad-blocker usage being highest on desktop browsers.")
+                st.markdown("""
+                **Where SST wins:**
+                - 🇨🇳 China (+15.2%): First-party domain routes better through Great Firewall
+                - Desktop users with ad-blockers globally
+                """)
+
+            # Visualize the discrepancy
+            geo_chart_data = pd.DataFrame({
+                "Country": ["Australia", "Australia", "China", "China", "Vietnam", "Vietnam", "India", "India"],
+                "Property": ["Direct", "SST", "Direct", "SST", "Direct", "SST", "Direct", "SST"],
+                "Sessions": [9245, 8962, 1102, 1269, 142, 100, 198, 169]
+            })
+            geo_chart = alt.Chart(geo_chart_data).mark_bar().encode(
+                x=alt.X("Country:N", title="Country", sort=["Australia", "China", "Vietnam", "India"]),
+                y=alt.Y("Sessions:Q", title="Sessions"),
+                color=alt.Color("Property:N",
+                    scale=alt.Scale(domain=["Direct", "SST"], range=["#3498db", "#2ecc71"]),
+                    legend=alt.Legend(title="Property")
+                ),
+                xOffset="Property:N",
+                tooltip=["Country", "Property", "Sessions"]
+            ).properties(height=250).configure_axis(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            ).configure_legend(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            )
+            st.altair_chart(geo_chart, use_container_width=True)
+
+            st.caption("Note: China shows SST advantage likely because first-party domains route more reliably through the Great Firewall than third-party Google analytics domains.")
 
             # Conversion Events Parity
             st.markdown("---")
@@ -781,27 +836,6 @@ def main():
                 st.metric("SST Total", "266,447")
             with col3:
                 st.metric("SST vs Direct", "+0.3%", help="SST captures slightly more events overall")
-
-            # Value Delivered Summary
-            st.markdown("---")
-            st.markdown("#### 📊 Value Delivered Summary")
-
-            st.markdown("""
-            | Benefit | Metric | Impact |
-            |---------|--------|--------|
-            | **Ad-blocker bypass** | +1,672 sessions (12.7%) | Sessions that would be invisible with Direct-only |
-            | **Dual-property lift** | +14.5% unique sessions | Combined coverage exceeds either system alone |
-            | **Product view capture** | +434 views (+1.6%) | Better engagement data for merchandising |
-            | **Scroll tracking** | +924 events (+9.8%) | More reliable engagement metrics |
-            | **First-party cookies** | 1-year vs 7-day Safari | Long-term user identification |
-            | **Raw data access** | S3 + Athena | Custom analysis beyond GA4 UI |
-            """)
-
-            st.info("""
-            **Bottom line:** SST is working as designed. The dual-property approach captures 14.5% more unique sessions than Direct alone.
-            SST's ad-blocker bypass is effective for desktop users with privacy tools, while Direct handles edge cases like corporate
-            firewall blocking of unknown domains.
-            """)
 
             st.markdown("---")
             st.markdown("#### 📋 Analysis Details")
