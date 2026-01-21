@@ -659,17 +659,7 @@ def main():
                 "Direct": [9245, 1102, 312, 287, 198, 142, 89, 152],
                 "SST": [8962, 1269, 308, 279, 169, 100, 83, 149],
                 "Diff": ["-3.1%", "+15.2%", "-1.3%", "-2.8%", "-14.6%", "-29.6%", "-6.7%", "-2.0%"],
-                "Winner": ["Direct", "SST", "≈ Parity", "Direct", "Direct", "Direct", "Direct", "≈ Parity"],
-                "Likely Cause": [
-                    "Corporate networks block SST domain",
-                    "Great Firewall routing favors first-party",
-                    "—",
-                    "Corporate networks",
-                    "ISP-level filtering blocks SST",
-                    "ISP-level filtering blocks SST",
-                    "Corporate networks",
-                    "—"
-                ]
+                "Winner": ["Direct", "SST", "≈ Parity", "Direct", "Direct", "Direct", "Direct", "≈ Parity"]
             })
             st.dataframe(geo_comparison, use_container_width=True, hide_index=True)
 
@@ -677,15 +667,15 @@ def main():
             with col1:
                 st.markdown("""
                 **Where Direct wins:**
-                - 🇦🇺 Australia (-3.1%): Corporate/enterprise networks
-                - 🇻🇳 Vietnam (-29.6%): ISP filtering
-                - 🇮🇳 India (-14.6%): ISP filtering
+                - 🇦🇺 Australia (-3.1%)
+                - 🇻🇳 Vietnam (-29.6%)
+                - 🇮🇳 India (-14.6%)
+                - 🇳🇿 New Zealand (-2.8%)
                 """)
             with col2:
                 st.markdown("""
                 **Where SST wins:**
-                - 🇨🇳 China (+15.2%): First-party domain routes better through Great Firewall
-                - Desktop users with ad-blockers globally
+                - 🇨🇳 China (+15.2%)
                 """)
 
             # Visualize the discrepancy
@@ -712,7 +702,26 @@ def main():
             )
             st.altair_chart(geo_chart, use_container_width=True)
 
-            st.caption("Note: China shows SST advantage likely because first-party domains route more reliably through the Great Firewall than third-party Google analytics domains.")
+            with st.expander("📋 Interpretation & Sources"):
+                st.markdown("""
+                **Possible causes for discrepancies:**
+
+                | Pattern | Possible Cause | Confidence |
+                |---------|----------------|------------|
+                | Direct wins in AU/NZ/UK | Corporate networks may whitelist `google-analytics.com` but block unknown domains like `sst.warwick.com.au` | Medium - inferred from B2B audience profile |
+                | Direct wins in Vietnam/India | Unknown - could be corporate networks, ISP routing, or sample size effects | Low - needs investigation |
+                | SST wins in China | Google Analytics domains are often blocked or unreliable in China; first-party domains route better | Medium - consistent with known GFW behavior |
+
+                **Data sources:**
+                - Direct (GA4): BigQuery export, property `375839889`, Jan 10-14 2026
+                - SST: Athena query on `warwick_weave_sst_events.events`, same period
+                - Country determined by: GA4 `geo.country` (Direct), IP geolocation (SST)
+
+                **Limitations:**
+                - Small sample sizes for non-AU countries reduce confidence
+                - IP geolocation can differ from GA4's geo detection
+                - Causation not proven - these are hypotheses based on observed patterns
+                """)
 
             # Conversion Events Parity
             st.markdown("---")
