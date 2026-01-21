@@ -474,14 +474,53 @@ def main():
             st.info("**Historical Snapshot:** Jan 10-14, 2026 (UTC-aligned, Warwick AU only)")
             st.markdown("""
             This tab shows a point-in-time comparison between Server-Side Tracking (SST) and Direct GA4 tracking.
-            - **SST:** Events sent through `sst.warwick.com.au` (first-party domain)
-            - **Direct:** Events sent to `google-analytics.com` (third-party domain)
-
-            Data sources: BigQuery (GA4 export) and Athena (SST raw events), aligned by UTC timestamp range.
+            - **SST:** Events sent through `sst.warwick.com.au` → GA4 property `G-Y0RSKRWP87`
+            - **Direct:** Events sent to `google-analytics.com` → GA4 property `G-EP4KTC47K3`
             """)
 
-            # Key findings from analysis
-            st.markdown("#### Key Findings")
+            # Session-level breakdown
+            st.markdown("#### Session Coverage")
+
+            # Data from analysis
+            total_sessions = 12781
+            both_sessions = 9448
+            direct_only = 1661
+            sst_only = 1672
+
+            col1, col2 = st.columns([1, 2])
+
+            with col1:
+                st.metric("Total Unique Sessions", f"{total_sessions:,}")
+                st.metric("Captured by Both", f"{both_sessions:,}", help="73.9% overlap")
+                st.metric("Direct-Only", f"{direct_only:,}", help="Corporate firewalls blocking SST domain")
+                st.metric("SST-Only", f"{sst_only:,}", help="Ad-blocker bypass")
+
+            with col2:
+                # Stacked bar visualization
+                session_data = pd.DataFrame({
+                    "Category": ["Both", "Direct-Only", "SST-Only"],
+                    "Sessions": [both_sessions, direct_only, sst_only],
+                    "Percentage": ["73.9%", "13.0%", "13.1%"]
+                })
+                chart = alt.Chart(session_data).mark_bar().encode(
+                    x=alt.X("Sessions:Q", title="Sessions"),
+                    y=alt.Y("Category:N", sort=["Both", "Direct-Only", "SST-Only"], title=""),
+                    color=alt.Color("Category:N",
+                        scale=alt.Scale(
+                            domain=["Both", "Direct-Only", "SST-Only"],
+                            range=["#2ecc71", "#3498db", "#e74c3c"]
+                        ),
+                        legend=None
+                    ),
+                    tooltip=["Category", "Sessions", "Percentage"]
+                ).properties(height=150).configure_axis(
+                    labelFontSize=CHART_LABEL_SIZE,
+                    titleFontSize=CHART_TITLE_SIZE
+                )
+                st.altair_chart(chart, use_container_width=True)
+
+            st.markdown("---")
+            st.markdown("#### Key Metrics")
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -527,6 +566,15 @@ def main():
             })
             st.dataframe(event_comparison, use_container_width=True, hide_index=True)
 
+            # Event totals
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Direct Total", "242,150")
+            with col2:
+                st.metric("SST Total", "247,585")
+            with col3:
+                st.metric("SST vs Direct", "+2.2%", help="SST captures more events overall")
+
             st.markdown("---")
             st.markdown("#### Analysis Details")
             st.markdown("""
@@ -536,9 +584,32 @@ def main():
             - Excluded: `session_start`, `first_visit` (GA4 synthetic events, Direct-only by design)
             - Excluded: `add_to_cart_click_fallback` (Safari fallback tag)
             - Session matching: by `ga_session_id` (timestamp-based, ~2% collision rate)
-
-            **Validation scripts:** `clients/warwick.com.au/validation/`
             """)
+
+            # Data sources reference (collapsible)
+            with st.expander("📚 Data Sources Reference"):
+                st.markdown("""
+                | Source | Location | Measurement ID |
+                |--------|----------|----------------|
+                | **Direct** | BigQuery `analytics_375839889` | `G-EP4KTC47K3` |
+                | **SST** | Athena `warwick_weave_sst_events.events` | `G-Y0RSKRWP87` |
+
+                **BigQuery (Direct):**
+                - GCP Project: `376132452327`
+                - Tables: `events_YYYYMMDD` (bucketed by Melbourne timezone)
+                - Timestamp: `event_timestamp` (microseconds since epoch)
+
+                **Athena (SST):**
+                - S3 Bucket: `warwick-com-au-events`
+                - Partitions: `year/month/day` (bucketed by UTC)
+                - Timestamp: ISO 8601 format with `T` separator (e.g., `2026-01-10T00:00:00Z`)
+
+                **Critical Gotchas:**
+                - Athena timestamp format must use `T` separator, not space
+                - BigQuery tables use Melbourne timezone, Athena uses UTC
+                - SST hashes `client_id` differently - use `ga_session_id` for matching
+                - ~2% session ID collision rate (acceptable for aggregate analysis)
+                """)
 
         with tab3:
             st.subheader("Event Details")
