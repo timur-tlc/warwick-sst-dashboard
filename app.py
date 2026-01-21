@@ -114,15 +114,17 @@ def get_athena_client():
     """Create Athena client using credentials from Streamlit secrets or environment."""
     try:
         # Try Streamlit secrets first (for Streamlit Cloud deployment)
-        return boto3.client(
-            "athena",
-            region_name=AWS_REGION,
-            aws_access_key_id=st.secrets["aws"]["access_key_id"],
-            aws_secret_access_key=st.secrets["aws"]["secret_access_key"],
-        )
-    except (KeyError, FileNotFoundError):
-        # Fall back to environment/profile credentials (for local development)
-        return boto3.client("athena", region_name=AWS_REGION)
+        if "aws" in st.secrets:
+            return boto3.client(
+                "athena",
+                region_name=AWS_REGION,
+                aws_access_key_id=st.secrets["aws"]["access_key_id"],
+                aws_secret_access_key=st.secrets["aws"]["secret_access_key"],
+            )
+    except Exception:
+        pass
+    # Fall back to environment/profile credentials (for local development)
+    return boto3.client("athena", region_name=AWS_REGION)
 
 
 def run_athena_query(query: str, timeout_seconds: int = 60) -> pd.DataFrame:
