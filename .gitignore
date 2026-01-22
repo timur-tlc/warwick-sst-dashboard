@@ -14,3 +14,5 @@ venv/
 
 # Verification output (contains session-level data)
 transformation_verification.csv
+direct_only_profile.csv
+sst_only_profile.csv
