@@ -742,22 +742,26 @@ def main():
                 st.caption("Mac users show highest SST advantage (+2.8%) - tech-savvy demographic with higher ad-blocker adoption.")
 
             # Browser comparison
-            st.markdown("**By Browser**")
+            st.markdown("**By Browser (Total Sessions)**")
             browser_data = pd.DataFrame({
                 "Browser": ["Chrome", "Safari", "Edge", "Firefox", "Samsung Internet"],
                 "Direct": [8382, 3178, 990, 104, 159],
                 "SST": [8216, 3151, 971, 104, 157],
-                "Diff": ["-2.0%", "-0.8%", "-1.9%", "0.0%", "-1.3%"],
-                "Notes": [
-                    "Slight Direct advantage",
-                    "Near parity (ITP affects cookies, not sessions)",
-                    "Slight Direct advantage",
-                    "Perfect parity",
-                    "Near parity"
-                ]
+                "Diff": ["-2.0%", "-0.8%", "-1.9%", "0.0%", "-1.3%"]
             })
             st.dataframe(browser_data, use_container_width=True, hide_index=True)
-            st.caption("Browser-level differences are minimal. The real SST advantage is in ad-blocker bypass (not visible in aggregate browser stats since blocked sessions don't appear in Direct at all).")
+
+            st.warning("""
+            **Why SST shows fewer sessions in every browser:**
+
+            Direct captures slightly more **total** sessions (11,527) than SST (11,120). The value of SST is not
+            capturing *more* sessions, but capturing *different* sessions:
+
+            - **SST-only sessions (1,672):** Ad-blocker users → invisible to Direct, so not counted in Direct's browser totals
+            - **Direct-only sessions (2,079):** Corporate firewall users → invisible to SST, so not counted in SST's browser totals
+
+            The +14.5% lift comes from **combining both** to reach 13,199 unique sessions, not from SST beating Direct.
+            """)
 
             with st.expander("⚠️ Technical Note: Device Classification & Transformation Layer"):
                 st.markdown("""
