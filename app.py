@@ -173,7 +173,7 @@ def run_athena_query(query: str, timeout_seconds: int = 60) -> pd.DataFrame:
 
 def main():
     st.title("📊 Warwick SST Events Dashboard")
-    st.markdown("Real-time analytics from server-side tracking data")
+    st.caption("Server-side tracking validation & comparison with Direct GA4 | **Status: ✅ Project Complete**")
 
     # Sidebar for date selection
     with st.sidebar:
@@ -207,6 +207,24 @@ def main():
         if st.button("🔄 Clear Cache", help="Force refresh all data from Athena"):
             st.cache_data.clear()
             st.rerun()
+
+        st.markdown("---")
+        with st.expander("ℹ️ About This Dashboard"):
+            st.markdown("""
+            **Purpose:** Validate that Warwick's server-side tracking (SST) implementation is working
+            and quantify the additional sessions captured vs Direct GA4.
+
+            **Key Finding:** SST captures +14.5% more unique sessions than Direct alone, primarily from:
+            - Ad-blocker users (desktop Chrome/Firefox)
+            - China traffic (Great Firewall blocks Direct)
+
+            **Data Sources:**
+            - SST: AWS Athena (`warwick_weave_sst_events`)
+            - Direct: BigQuery (`analytics_375839889`)
+
+            **Project:** TLC / Warwick Fabrics
+            **Completed:** January 2026
+            """)
 
     # Main content area
     try:
@@ -479,10 +497,28 @@ def main():
 
         with tab2:
             st.subheader("SST vs Direct Comparison")
-            st.info("**Historical Snapshot:** Jan 10-14, 2026 (UTC-aligned, Warwick AU only)")
+
+            # Project Completion Banner
+            st.success("""
+            ### ✅ Project Complete: SST Delivers Measurable Value
+
+            **Bottom Line:** Running both SST and Direct captures **+14.5% more unique sessions** than Direct alone.
+            This translates to approximately **240 additional sessions per day** that would otherwise be invisible.
+
+            | What SST Captures | Why | Business Impact |
+            |-------------------|-----|-----------------|
+            | **Ad-blocker users** | First-party domain bypasses blocklists | Desktop users with privacy tools now visible |
+            | **China traffic** | Great Firewall blocks `google-analytics.com` | B2B traffic from Chinese architects/designers recovered |
+            | **Scroll depth events** | Server-side handles tab close edge cases | +9.8% more engagement data for content optimization |
+
+            **Recommendation:** Continue running both properties. The dual-property approach is working as designed.
+            """)
+
+            st.markdown("---")
+            st.info("**Analysis Period:** Jan 10-14, 2026 (session-level), Jan 15-21, 2026 (hypothesis validation). Warwick AU only.")
 
             # Executive Summary - Business Value
-            st.markdown("#### 🎯 Executive Summary")
+            st.markdown("#### 🎯 Key Metrics")
 
             # Key metrics row
             m1, m2, m3, m4 = st.columns(4)
@@ -522,11 +558,11 @@ def main():
 
             with col3:
                 st.markdown("""
-                **📋 Recommendations**
-                - Continue dual-property approach
-                - No GTM proxy needed (low ROI)
-                - SST value highest on weekends/holidays
-                - Review quarterly for traffic shifts
+                **📋 What To Do With This**
+                - **Primary reporting:** Use Direct (GA4 `G-EP4KTC47K3`)
+                - **Ad-blocker recovery:** Monitor SST-only sessions
+                - **China traffic:** Use SST property for China reports
+                - **No GTM proxy needed:** ROI too low for B2B traffic
                 """)
 
             with st.expander("📐 Architecture & Data Sources"):
@@ -1271,9 +1307,39 @@ def main():
                 | Holiday traffic spikes | Personal devices = more ad-blockers |
                 """)
 
+            st.markdown("---")
+            st.markdown("#### 📋 Actionable Recommendations")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("""
+                **For Day-to-Day Reporting:**
+                - Use **Direct** (`G-EP4KTC47K3`) as your primary GA4 property
+                - Direct has the same data + integrates with Google Ads, Looker Studio, etc.
+                - SST data requires Athena queries (more technical)
+
+                **For China Traffic Analysis:**
+                - Query **SST** property for China-specific reports
+                - SST captures 15-30% more China sessions depending on GFW activity
+                - China traffic peaks at 3am-5am Melbourne time (China business hours)
+                """)
+
+            with col2:
+                st.markdown("""
+                **For Ad-Blocker Recovery Monitoring:**
+                - SST-only sessions = ad-blocker users now visible
+                - ~12.7% of sessions are SST-only (ad-blocker bypass wins)
+                - Higher on weekends/holidays when personal devices increase
+
+                **What NOT To Do:**
+                - ❌ Don't add both properties' numbers together (double-counting)
+                - ❌ Don't invest in GTM proxy (~5% invisible traffic not worth $99/mo)
+                - ❌ Don't try to merge SST+Direct data (different user IDs)
+                """)
+
             st.success("""
-            **Current Status:** SST is working correctly. The +14.5% dual-property lift justifies running both systems.
-            Continue monitoring quarterly to validate long-term benefits.
+            **Project Status: Complete.** SST is working correctly. The +14.5% dual-property lift justifies the infrastructure cost.
+            Review quarterly to validate long-term Safari ITP benefits and monitor for traffic pattern shifts.
             """)
 
             # Data sources reference (collapsible)
@@ -1409,6 +1475,7 @@ LIMIT 10"""
     st.markdown(
         "<div style='text-align: center; color: gray;'>"
         f"Warwick SST Dashboard | v{VERSION} | "
+        f"Project Status: ✅ Complete | "
         f"Refreshed: {brisbane_now.strftime('%Y-%m-%d %H:%M:%S')} AEST"
         "</div>",
         unsafe_allow_html=True
