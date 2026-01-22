@@ -11,3 +11,6 @@ venv/
 .idea/
 .vscode/
 *.swp
+
+# Verification output (contains session-level data)
+transformation_verification.csv
