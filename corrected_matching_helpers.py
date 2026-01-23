@@ -220,6 +220,25 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     # Calculate engagement time (convert to seconds)
     both_direct = direct_df[direct_df['session_category'] == 'Both']
 
+    # Calculate daily breakdown for timeseries
+    # Use Direct timestamps for date extraction (microseconds since epoch)
+    direct_df['date'] = pd.to_datetime(direct_df['session_start_ts'] // 1000000, unit='s').dt.date
+    sst_df['date'] = pd.to_datetime(sst_df['session_start_ts'] // 1000000, unit='s').dt.date
+
+    # Daily counts by category
+    daily_both = direct_df[direct_df['session_category'] == 'Both'].groupby('date').size()
+    daily_direct_only = direct_df[direct_df['session_category'] == 'Direct-only'].groupby('date').size()
+    daily_sst_only = sst_df[sst_df['session_category'] == 'SST-only'].groupby('date').size()
+
+    # Combine into a single dataframe
+    daily_df = pd.DataFrame({
+        'Both': daily_both,
+        'Direct-only': daily_direct_only,
+        'SST-only': daily_sst_only
+    }).fillna(0).astype(int)
+    daily_df.index = pd.to_datetime(daily_df.index)
+    daily_df = daily_df.reset_index().rename(columns={'index': 'date'})
+
     return {
         'totals': {
             'both': both_count,
@@ -227,6 +246,7 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
             'direct_only': direct_only_count,
             'total': total
         },
+        'daily': daily_df,
         'profiles': {
             'Both': {
                 'desktop_pct': (both_sst['device_category'] == 'desktop').sum() / len(both_sst) * 100,

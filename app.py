@@ -265,6 +265,42 @@ def render_corrected_comparison_tab():
         st.metric("SST Lift", f"+{lift_pct:.1f}%",
                  help="Extra sessions from running both vs Direct alone")
 
+    # Daily timeseries chart
+    st.markdown("---")
+    st.markdown("#### 📈 Daily Session Breakdown (CORRECTED)")
+
+    daily_df = data.get('daily')
+    if daily_df is not None and not daily_df.empty:
+        # Melt for Altair
+        daily_melted = daily_df.melt(id_vars=['date'], var_name='Category', value_name='Sessions')
+
+        chart = alt.Chart(daily_melted).mark_line(point=True).encode(
+            x=alt.X('date:T', title='Date', axis=alt.Axis(format='%b %d')),
+            y=alt.Y('Sessions:Q', title='Sessions'),
+            color=alt.Color('Category:N',
+                scale=alt.Scale(
+                    domain=['Both', 'SST-only', 'Direct-only'],
+                    range=['#9b59b6', '#2ecc71', '#3498db']
+                ),
+                legend=alt.Legend(title='Category')
+            ),
+            tooltip=[alt.Tooltip('date:T', format='%Y-%m-%d'), 'Category', 'Sessions']
+        ).properties(height=300).configure_axis(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        ).configure_legend(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+        # Also show the data table
+        with st.expander("📋 Daily Data Table"):
+            display_df = daily_df.copy()
+            display_df['date'] = display_df['date'].dt.strftime('%Y-%m-%d (%a)')
+            display_df['Total'] = display_df['Both'] + display_df['SST-only'] + display_df['Direct-only']
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+
     # Comparison table
     st.markdown("---")
     st.markdown("#### 📊 OLD vs NEW Categorization")
