@@ -1,0 +1,33 @@
+{
+  "totals": {
+    "both": 15180,
+    "sst_only": 1807,
+    "direct_only": 1385,
+    "total": 18372
+  },
+  "profiles": {
+    "Both": {
+      "desktop_pct": 68.49143610013175,
+      "windows_pct": 51.548089591567845,
+      "windows_and_desktop_pct": 51.548089591567845,
+      "purchase_rate": 2.5625823451910406,
+      "avg_engagement_sec": 129.10768992094862
+    },
+    "SST-only": {
+      "desktop_pct": 79.69009407858329,
+      "windows_pct": 68.28998339789707,
+      "windows_and_desktop_pct": 68.28998339789707,
+      "purchase_rate": 1.715550636413946,
+      "avg_engagement_sec": 78.53624128389596
+    },
+    "Direct-only": {
+      "desktop_pct": 84.11552346570397,
+      "windows_pct": 72.05776173285199,
+      "windows_and_desktop_pct": 72.05776173285199,
+      "purchase_rate": 1.371841155234657,
+      "avg_engagement_sec": 48.826156678700364
+    }
+  },
+  "date_start": "20260106",
+  "date_end": "20260113"
+}

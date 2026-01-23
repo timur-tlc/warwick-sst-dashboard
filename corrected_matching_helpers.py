@@ -8,6 +8,52 @@ import pandas as pd
 import boto3
 from google.cloud import bigquery
 import time
+import json
+from pathlib import Path
+
+CACHE_DIR = Path(__file__).parent / "cache"
+
+
+def load_from_cache():
+    """
+    Load pre-computed session data from cache files.
+
+    Returns None if cache doesn't exist or is invalid.
+    """
+    try:
+        if not CACHE_DIR.exists():
+            return None
+
+        metadata_path = CACHE_DIR / "metadata.json"
+        if not metadata_path.exists():
+            return None
+
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+
+        # Load all cached data
+        daily_df = pd.read_parquet(CACHE_DIR / "daily.parquet")
+        hourly_df = pd.read_parquet(CACHE_DIR / "hourly.parquet")
+        hourly_weekday_df = pd.read_parquet(CACHE_DIR / "hourly_weekday.parquet")
+        hourly_weekend_df = pd.read_parquet(CACHE_DIR / "hourly_weekend.parquet")
+        sst_df = pd.read_parquet(CACHE_DIR / "sst_sessions.parquet")
+        direct_df = pd.read_parquet(CACHE_DIR / "direct_sessions.parquet")
+
+        return {
+            'totals': metadata['totals'],
+            'profiles': metadata['profiles'],
+            'daily': daily_df,
+            'hourly': hourly_df,
+            'hourly_weekday': hourly_weekday_df,
+            'hourly_weekend': hourly_weekend_df,
+            'dataframes': {
+                'sst': sst_df,
+                'direct': direct_df
+            }
+        }
+    except Exception as e:
+        print(f"Cache load failed: {e}")
+        return None
 
 
 def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window_seconds=300):
@@ -195,12 +241,22 @@ def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window
     }
 
 
-def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
+def get_corrected_session_stats(date_start='20260106', date_end='20260113', use_cache=True):
     """
     Get session statistics using corrected matching.
 
+    If use_cache=True (default), tries to load from pre-computed cache first.
+    Run `python materialize_matching.py` to generate the cache.
+
     Returns dict with corrected categorization stats.
     """
+    # Try loading from cache first
+    if use_cache:
+        cached = load_from_cache()
+        if cached is not None:
+            print("Loaded from cache")
+            return cached
+        print("Cache not found, running live queries...")
 
     result = fuzzy_match_sessions(date_start, date_end)
 
