@@ -303,6 +303,8 @@ def render_corrected_comparison_tab():
         st.metric("Win+Desktop", f"{profiles['Both']['windows_and_desktop_pct']:.1f}%",
                  help="Corporate profile: Windows OS on Desktop device")
         st.metric("Purchase Rate", f"{profiles['Both']['purchase_rate']:.2f}%")
+        st.metric("Avg Engagement", f"{profiles['Both']['avg_engagement_sec']:.0f}s",
+                 help="Average engagement time per session")
 
     with col2:
         st.markdown("**Direct-Only**")
@@ -310,6 +312,7 @@ def render_corrected_comparison_tab():
         windows_diff = profiles['Direct-only']['windows_pct'] - profiles['Both']['windows_pct']
         win_desktop_diff = profiles['Direct-only']['windows_and_desktop_pct'] - profiles['Both']['windows_and_desktop_pct']
         purchase_diff = profiles['Direct-only']['purchase_rate'] - profiles['Both']['purchase_rate']
+        engagement_diff = profiles['Direct-only']['avg_engagement_sec'] - profiles['Both']['avg_engagement_sec']
 
         st.metric("Desktop", f"{profiles['Direct-only']['desktop_pct']:.1f}%",
                  delta=f"{desktop_diff:+.1f}pp")
@@ -320,6 +323,8 @@ def render_corrected_comparison_tab():
                  help="Corporate profile: Windows OS on Desktop device")
         st.metric("Purchase Rate", f"{profiles['Direct-only']['purchase_rate']:.2f}%",
                  delta=f"{purchase_diff:+.2f}pp", delta_color="inverse")
+        st.metric("Avg Engagement", f"{profiles['Direct-only']['avg_engagement_sec']:.0f}s",
+                 delta=f"{engagement_diff:+.0f}s", delta_color="inverse")
 
     with col3:
         st.markdown("**SST-Only**")
@@ -327,6 +332,7 @@ def render_corrected_comparison_tab():
         windows_diff_sst = profiles['SST-only']['windows_pct'] - profiles['Both']['windows_pct']
         win_desktop_diff_sst = profiles['SST-only']['windows_and_desktop_pct'] - profiles['Both']['windows_and_desktop_pct']
         purchase_diff_sst = profiles['SST-only']['purchase_rate'] - profiles['Both']['purchase_rate']
+        engagement_diff_sst = profiles['SST-only']['avg_engagement_sec'] - profiles['Both']['avg_engagement_sec']
 
         st.metric("Desktop", f"{profiles['SST-only']['desktop_pct']:.1f}%",
                  delta=f"{desktop_diff_sst:+.1f}pp")
@@ -337,6 +343,8 @@ def render_corrected_comparison_tab():
                  help="Corporate profile: Windows OS on Desktop device")
         st.metric("Purchase Rate", f"{profiles['SST-only']['purchase_rate']:.2f}%",
                  delta=f"{purchase_diff_sst:+.2f}pp", delta_color="inverse")
+        st.metric("Avg Engagement", f"{profiles['SST-only']['avg_engagement_sec']:.0f}s",
+                 delta=f"{engagement_diff_sst:+.0f}s", delta_color="inverse")
 
     # Corporate Hypothesis
     st.markdown("---")
@@ -357,13 +365,20 @@ def render_corrected_comparison_tab():
     else:
         st.info("Corporate hypothesis: weak evidence (profiles similar to baseline)")
 
-    # Conversion Hypothesis
+    # Conversion & Engagement Hypothesis
     if purchase_diff < -0.5 and purchase_diff_sst < -0.5:
         st.success(f"""
-        ##### 💰 Conversion Hypothesis - VALIDATED ✅
+        ##### 💰 Conversion & Engagement Hypothesis - VALIDATED ✅
 
-        Both "only" categories have lower purchase rates (Direct: {purchase_diff:+.2f}pp, SST: {purchase_diff_sst:+.2f}pp).
-        These are research/browsing sessions, not purchase intent.
+        Both "only" categories show lower purchase rates:
+        - Direct-only: {purchase_diff:+.2f}pp ({profiles['Direct-only']['purchase_rate']:.2f}% vs {profiles['Both']['purchase_rate']:.2f}%)
+        - SST-only: {purchase_diff_sst:+.2f}pp ({profiles['SST-only']['purchase_rate']:.2f}% vs {profiles['Both']['purchase_rate']:.2f}%)
+
+        Engagement time difference:
+        - Direct-only: {engagement_diff:+.0f}s ({profiles['Direct-only']['avg_engagement_sec']:.0f}s vs {profiles['Both']['avg_engagement_sec']:.0f}s)
+        - SST-only: {engagement_diff_sst:+.0f}s ({profiles['SST-only']['avg_engagement_sec']:.0f}s vs {profiles['Both']['avg_engagement_sec']:.0f}s)
+
+        **Conclusion:** These are research/browsing sessions from corporate users, not purchase intent.
         """)
 
     st.markdown("---")
@@ -448,36 +463,69 @@ def render_corrected_comparison_tab():
         st.altair_chart(chart, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("#### 💰 Purchase Rate Comparison (CORRECTED)")
+    st.markdown("#### 💰 Engagement & Conversion (CORRECTED)")
 
-    purchase_chart_data = pd.DataFrame({
-        "Category": ["Both", "SST-only", "Direct-only"],
-        "Purchase Rate %": [
-            profiles['Both']['purchase_rate'],
-            profiles['SST-only']['purchase_rate'],
-            profiles['Direct-only']['purchase_rate']
-        ]
-    })
-    chart = alt.Chart(purchase_chart_data).mark_bar().encode(
-        x=alt.X("Category:N", title="", sort=["Both", "SST-only", "Direct-only"]),
-        y=alt.Y("Purchase Rate %:Q", title="Purchase Rate %"),
-        color=alt.Color("Category:N",
-            scale=alt.Scale(
-                domain=["Both", "SST-only", "Direct-only"],
-                range=["#9b59b6", "#2ecc71", "#3498db"]
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Purchase Rate Comparison**")
+        purchase_chart_data = pd.DataFrame({
+            "Category": ["Both", "SST-only", "Direct-only"],
+            "Purchase Rate %": [
+                profiles['Both']['purchase_rate'],
+                profiles['SST-only']['purchase_rate'],
+                profiles['Direct-only']['purchase_rate']
+            ]
+        })
+        chart = alt.Chart(purchase_chart_data).mark_bar().encode(
+            x=alt.X("Category:N", title="", sort=["Both", "SST-only", "Direct-only"]),
+            y=alt.Y("Purchase Rate %:Q", title="Purchase Rate %"),
+            color=alt.Color("Category:N",
+                scale=alt.Scale(
+                    domain=["Both", "SST-only", "Direct-only"],
+                    range=["#9b59b6", "#2ecc71", "#3498db"]
+                ),
+                legend=None
             ),
-            legend=None
-        ),
-        tooltip=["Category", alt.Tooltip("Purchase Rate %:Q", format=".2f")]
-    ).properties(height=250).configure_axis(
-        labelFontSize=CHART_LABEL_SIZE,
-        titleFontSize=CHART_TITLE_SIZE
-    )
-    st.altair_chart(chart, use_container_width=True)
+            tooltip=["Category", alt.Tooltip("Purchase Rate %:Q", format=".2f")]
+        ).properties(height=250).configure_axis(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        )
+        st.altair_chart(chart, use_container_width=True)
 
-    st.info("""
-    **Key Insight:** Both "only" categories have lower purchase rates and higher corporate profiles (Desktop + Windows).
-    These are research/browsing sessions from B2B users, not purchase intent.
+    with col2:
+        st.markdown("**Average Engagement Time**")
+        engagement_chart_data = pd.DataFrame({
+            "Category": ["Both", "SST-only", "Direct-only"],
+            "Engagement (seconds)": [
+                profiles['Both']['avg_engagement_sec'],
+                profiles['SST-only']['avg_engagement_sec'],
+                profiles['Direct-only']['avg_engagement_sec']
+            ]
+        })
+        chart = alt.Chart(engagement_chart_data).mark_bar().encode(
+            x=alt.X("Category:N", title="", sort=["Both", "SST-only", "Direct-only"]),
+            y=alt.Y("Engagement (seconds):Q", title="Avg Engagement (seconds)"),
+            color=alt.Color("Category:N",
+                scale=alt.Scale(
+                    domain=["Both", "SST-only", "Direct-only"],
+                    range=["#9b59b6", "#2ecc71", "#3498db"]
+                ),
+                legend=None
+            ),
+            tooltip=["Category", alt.Tooltip("Engagement (seconds):Q", format=".0f")]
+        ).properties(height=250).configure_axis(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+    st.info(f"""
+    **Key Insights:**
+    - Both "only" categories have **lower purchase rates** ({profiles['Direct-only']['purchase_rate']:.2f}% and {profiles['SST-only']['purchase_rate']:.2f}% vs {profiles['Both']['purchase_rate']:.2f}% baseline)
+    - Both "only" categories have **{('lower' if engagement_diff < 0 else 'higher')} engagement time** ({profiles['Direct-only']['avg_engagement_sec']:.0f}s and {profiles['SST-only']['avg_engagement_sec']:.0f}s vs {profiles['Both']['avg_engagement_sec']:.0f}s baseline)
+    - This suggests research/browsing sessions from B2B users, not purchase intent
     """)
 
     st.markdown("---")
