@@ -388,6 +388,99 @@ def render_corrected_comparison_tab():
         """)
 
     st.markdown("---")
+    st.markdown("#### 📊 Device & OS Breakdown (CORRECTED)")
+
+    # Visualize the corrected profiles
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Desktop Usage by Category**")
+        desktop_chart_data = pd.DataFrame({
+            "Category": ["Both", "SST-only", "Direct-only"],
+            "Desktop %": [
+                profiles['Both']['desktop_pct'],
+                profiles['SST-only']['desktop_pct'],
+                profiles['Direct-only']['desktop_pct']
+            ]
+        })
+        chart = alt.Chart(desktop_chart_data).mark_bar().encode(
+            x=alt.X("Category:N", title="", sort=["Both", "SST-only", "Direct-only"]),
+            y=alt.Y("Desktop %:Q", title="Desktop %", scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color("Category:N",
+                scale=alt.Scale(
+                    domain=["Both", "SST-only", "Direct-only"],
+                    range=["#9b59b6", "#2ecc71", "#3498db"]
+                ),
+                legend=None
+            ),
+            tooltip=["Category", alt.Tooltip("Desktop %:Q", format=".1f")]
+        ).properties(height=250).configure_axis(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+    with col2:
+        st.markdown("**Windows Usage by Category**")
+        windows_chart_data = pd.DataFrame({
+            "Category": ["Both", "SST-only", "Direct-only"],
+            "Windows %": [
+                profiles['Both']['windows_pct'],
+                profiles['SST-only']['windows_pct'],
+                profiles['Direct-only']['windows_pct']
+            ]
+        })
+        chart = alt.Chart(windows_chart_data).mark_bar().encode(
+            x=alt.X("Category:N", title="", sort=["Both", "SST-only", "Direct-only"]),
+            y=alt.Y("Windows %:Q", title="Windows %", scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color("Category:N",
+                scale=alt.Scale(
+                    domain=["Both", "SST-only", "Direct-only"],
+                    range=["#9b59b6", "#2ecc71", "#3498db"]
+                ),
+                legend=None
+            ),
+            tooltip=["Category", alt.Tooltip("Windows %:Q", format=".1f")]
+        ).properties(height=250).configure_axis(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("#### 💰 Purchase Rate Comparison (CORRECTED)")
+
+    purchase_chart_data = pd.DataFrame({
+        "Category": ["Both", "SST-only", "Direct-only"],
+        "Purchase Rate %": [
+            profiles['Both']['purchase_rate'],
+            profiles['SST-only']['purchase_rate'],
+            profiles['Direct-only']['purchase_rate']
+        ]
+    })
+    chart = alt.Chart(purchase_chart_data).mark_bar().encode(
+        x=alt.X("Category:N", title="", sort=["Both", "SST-only", "Direct-only"]),
+        y=alt.Y("Purchase Rate %:Q", title="Purchase Rate %"),
+        color=alt.Color("Category:N",
+            scale=alt.Scale(
+                domain=["Both", "SST-only", "Direct-only"],
+                range=["#9b59b6", "#2ecc71", "#3498db"]
+            ),
+            legend=None
+        ),
+        tooltip=["Category", alt.Tooltip("Purchase Rate %:Q", format=".2f")]
+    ).properties(height=250).configure_axis(
+        labelFontSize=CHART_LABEL_SIZE,
+        titleFontSize=CHART_TITLE_SIZE
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+    st.info("""
+    **Key Insight:** Both "only" categories have lower purchase rates and higher corporate profiles (Desktop + Windows).
+    These are research/browsing sessions from B2B users, not purchase intent.
+    """)
+
+    st.markdown("---")
     st.markdown("#### 💡 Recommendations")
     st.success(f"""
     1. **Continue running both properties** - SST captures +{lift_pct:.1f}% additional sessions
@@ -396,169 +489,31 @@ def render_corrected_comparison_tab():
     4. **Monitor SST for ad-blocker recovery** - ~{sst_only_pct:.1f}% of traffic only visible via SST
     """)
 
-    # Historical Analysis Section (OLD METHODOLOGY for reference)
     st.markdown("---")
-    st.markdown("---")
-    with st.expander("📊 HISTORICAL ANALYSIS (OLD METHODOLOGY - Jan 10-14, 2026)", expanded=False):
-        st.warning("""
-        **⚠️ NOTE:** The analysis below uses the OLD ga_session_id matching methodology which has been proven flawed.
-        Numbers shown here (71.6% overlap, +14.5% lift) are INFLATED. Refer to the corrected findings above for accurate metrics.
-
-        This section is preserved for historical reference and detailed pattern analysis.
-        """)
-
-        st.markdown("---")
-        st.markdown("#### 📅 Traffic Pattern: Weekday vs Holiday")
-        st.markdown("*SST advantage varies by traffic type*")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Holiday & Weekend (Jan 1-4)**")
-            holiday_data = pd.DataFrame({
-                "Date": ["Jan 1 (Thu)", "Jan 2 (Fri)", "Jan 3 (Sat)", "Jan 4 (Sun)"],
-                "Direct": [1402, 1659, 1346, 1260],
-                "SST": [1479, 1700, 1370, 1255],
-                "SST Advantage": ["+5.5%", "+2.5%", "+1.8%", "-0.4%"]
-            })
-            st.dataframe(holiday_data, use_container_width=True, hide_index=True)
-
-        with col2:
-            st.markdown("**Week 1 Weekdays (Jan 5-9)**")
-            weekday_data = pd.DataFrame({
-                "Date": ["Jan 5 (Mon)", "Jan 6 (Tue)", "Jan 7 (Wed)", "Jan 8 (Thu)", "Jan 9 (Fri)"],
-                "Direct": [2068, 2106, 2246, 2086, 1954],
-                "SST": [2034, 2094, 2223, 2080, 1695],
-                "SST Advantage": ["-1.6%", "-0.6%", "-1.0%", "-0.3%", "-13.3%"]
-            })
-            st.dataframe(weekday_data, use_container_width=True, hide_index=True)
-
-        col3, col4 = st.columns(2)
-        with col3:
-            st.markdown("**Weekend (Jan 10-11)**")
-            weekend_data = pd.DataFrame({
-                "Date": ["Jan 10 (Sat)", "Jan 11 (Sun)"],
-                "Direct": [1248, 1168],
-                "SST": [1264, 1483],
-                "SST Advantage": ["+1.3%", "+27.0%"]
-            })
-            st.dataframe(weekend_data, use_container_width=True, hide_index=True)
-
-        with col4:
-            st.markdown("**Week 2 Weekdays (Jan 12-13)**")
-            week2_data = pd.DataFrame({
-                "Date": ["Jan 12 (Mon)", "Jan 13 (Tue)"],
-                "Direct": [2962, 3226],
-                "SST": [3065, 3235],
-                "SST Advantage": ["+3.5%", "+0.3%"]
-            })
-            st.dataframe(week2_data, use_container_width=True, hide_index=True)
-
+    with st.expander("📊 Want detailed browser/geo/daily breakdowns with corrected methodology?"):
         st.info("""
-        **Why the difference?**
+        **To generate detailed breakdowns using corrected methodology:**
 
-        **Holidays (Jan 1-3):** Users browse from personal devices with ad-blockers → SST captures +2-5% more sessions
+        The current analysis shows corrected session categorization and user profiles. To add detailed breakdowns
+        by browser, geography, or daily traffic patterns using the corrected timestamp+attribute matching, you would need to:
 
-        **Weekdays:** B2B audience (architects, designers) on work devices with default browser settings → near parity or slight Direct advantage
+        1. **Extend `corrected_matching_helpers.py`** to return additional breakdowns
+        2. **Query both sources** for each dimension (browser, country, date) after categorization
+        3. **Join the results** using the corrected session categories
 
-        **Weekend (Jan 10-11):** Personal device usage returns → SST advantage spikes to **+27% on Sunday** (Jan 11)
+        **What's currently available:**
+        - ✅ Corrected session counts (Both, SST-only, Direct-only)
+        - ✅ User profiles (Desktop %, Windows %, Purchase Rate) by category
+        - ✅ Statistical validation (chi-squared tests, correlations)
 
-        **Jan 9 anomaly (-13.3%):** Unusual Direct advantage on Friday - may indicate SST endpoint routing issue or traffic pattern anomaly. Worth investigating if pattern repeats.
+        **What would require additional development:**
+        - ❌ Daily traffic patterns with corrected matching
+        - ❌ Browser/device breakdowns by corrected category
+        - ❌ Geographic analysis by corrected category
+
+        The OLD analysis (Jan 10-14) had these breakdowns but used flawed ga_session_id matching,
+        making the numbers unreliable.
         """)
-
-        st.markdown("---")
-        st.markdown("#### Why Run Both?")
-
-        st.markdown("""
-        | Scenario | SST Captures | Direct Captures |
-        |----------|--------------|-----------------|
-        | Ad-blocker blocks `google-analytics.com` | ✅ Yes | ❌ No |
-        | Corporate firewall blocks `sst.warwick.com.au` | ❌ No | ✅ Yes |
-        | Safari ITP (7-day cookie limit) | ✅ First-party cookies (longer) | ⚠️ Limited |
-        | Normal browsing | ✅ Yes | ✅ Yes |
-
-        **Key Insight:** SST and Direct have nearly equal blind spots (~10% each with corrected methodology). Running both systems captures additional unique sessions.
-        """)
-
-        st.markdown("---")
-        st.markdown("#### 📊 Browser & Device Analysis")
-        st.markdown("*Where does SST add the most value?*")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("**By Device Category**")
-            device_data = pd.DataFrame({
-                "Device": ["Desktop", "Mobile", "Tablet"],
-                "Direct": [8932, 3582, 166],
-                "SST": [9101, 3508, 163],
-                "Diff": ["+1.9%", "-2.1%", "-1.8%"]
-            })
-            st.dataframe(device_data, use_container_width=True, hide_index=True)
-            st.caption("Desktop shows SST advantage because desktop browsers support ad-blocking extensions; mobile browsers generally don't.")
-
-        with col2:
-            st.markdown("**By Operating System**")
-            os_data = pd.DataFrame({
-                "OS": ["Windows", "Macintosh", "iOS", "Android"],
-                "Direct": [6891, 1905, 2757, 937],
-                "SST": [6991, 1959, 2741, 948],
-                "Diff": ["+1.5%", "+2.8%", "-0.6%", "+1.2%"]
-            })
-            st.dataframe(os_data, use_container_width=True, hide_index=True)
-            st.caption("Mac users show highest SST advantage (+2.8%) - tech-savvy demographic with higher ad-blocker adoption.")
-
-        # Browser comparison
-        st.markdown("**By Browser (Total Sessions)**")
-        browser_data = pd.DataFrame({
-            "Browser": ["Chrome", "Safari", "Edge", "Firefox", "Samsung Internet"],
-            "Direct": [8382, 3178, 990, 104, 159],
-            "SST": [8216, 3151, 971, 104, 157],
-            "Diff": ["-2.0%", "-0.8%", "-1.9%", "0.0%", "-1.3%"]
-        })
-        st.dataframe(browser_data, use_container_width=True, hide_index=True)
-
-        st.warning("""
-        **Why SST shows fewer sessions in every browser:**
-
-        Direct captures slightly more **total** sessions (11,527) than SST (11,120). The value of SST is not
-        capturing *more* sessions, but capturing *different* sessions:
-
-        - **SST-only sessions (1,672):** Ad-blocker users → invisible to Direct, so not counted in Direct's browser totals
-        - **Direct-only sessions (2,079):** Corporate firewall users → invisible to SST, so not counted in SST's browser totals
-
-        The +14.5% lift (OLD, inflated) comes from **combining both** to reach unique sessions, not from SST beating Direct.
-        """)
-
-        st.markdown("---")
-        st.markdown("#### 🌏 Geographic Analysis")
-        st.markdown("*Session capture comparison by country*")
-
-        # Country comparison table
-        geo_comparison = pd.DataFrame({
-            "Country": ["Australia", "China", "United States", "New Zealand", "India", "Vietnam", "United Kingdom", "Other"],
-            "Direct": [9245, 1102, 312, 287, 198, 142, 89, 152],
-            "SST": [8962, 1269, 308, 279, 169, 100, 83, 149],
-            "Diff": ["-3.1%", "+15.2%", "-1.3%", "-2.8%", "-14.6%", "-29.6%", "-6.7%", "-2.0%"],
-            "Winner": ["Direct", "SST", "≈ Parity", "Direct", "Direct", "Direct", "Direct", "≈ Parity"]
-        })
-        st.dataframe(geo_comparison, use_container_width=True, hide_index=True)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("""
-            **Where Direct wins:**
-            - 🇦🇺 Australia (-3.1%)
-            - 🇻🇳 Vietnam (-29.6%)
-            - 🇮🇳 India (-14.6%)
-            - 🇳🇿 New Zealand (-2.8%)
-            """)
-        with col2:
-            st.markdown("""
-            **Where SST wins:**
-            - 🇨🇳 China (+15.2%)
-
-            Likely due to Great Firewall blocking google-analytics.com
-            """)
 
     with st.expander("📐 Architecture & Data Sources"):
         arch_col1, arch_col2 = st.columns(2)
