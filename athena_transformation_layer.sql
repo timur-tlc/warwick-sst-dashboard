@@ -42,7 +42,8 @@ WITH parsed_payload AS (
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.currency') AS ecommerce_currency,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.source') AS traffic_source,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.medium') AS traffic_medium,
-        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.campaign') AS traffic_campaign
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.campaign') AS traffic_campaign,
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.engagement_time_msec') AS engagement_time_msec
     FROM warwick_weave_sst_events.events
 ),
 
@@ -290,6 +291,9 @@ SELECT
     month,
     day,
     ip_address,
+
+    -- Engagement time (from GA4 payload)
+    CAST(engagement_time_msec AS BIGINT) AS engagement_time_msec,
 
     -- Quality flag for filtering
     CASE
