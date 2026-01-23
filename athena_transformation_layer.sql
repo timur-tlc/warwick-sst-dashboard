@@ -13,7 +13,7 @@
 -- - device_operating_system (Windows/iOS/Macintosh/Android/Linux)
 -- - geo_country (full name, e.g., "Australia" not "AU")
 --
--- Version: 3.4 (2026-01-22)
+-- Version: 3.5 (2026-01-22) - Added 29 missing country code mappings
 -- ============================================================================
 
 CREATE OR REPLACE VIEW warwick_weave_sst_events.sst_events_transformed AS
@@ -218,6 +218,39 @@ SELECT
         WHEN 'KE' THEN 'Kenya'
         WHEN 'ZW' THEN 'Zimbabwe'
         WHEN 'MG' THEN 'Madagascar'
+        WHEN 'ET' THEN 'Ethiopia'
+        WHEN 'UG' THEN 'Uganda'
+        WHEN 'CM' THEN 'Cameroon'
+        WHEN 'DZ' THEN 'Algeria'
+        WHEN 'TN' THEN 'Tunisia'
+        WHEN 'MU' THEN 'Mauritius'
+        -- Middle East (additional)
+        WHEN 'BH' THEN 'Bahrain'
+        WHEN 'IR' THEN 'Iran'
+        WHEN 'IQ' THEN 'Iraq'
+        WHEN 'OM' THEN 'Oman'
+        WHEN 'LB' THEN 'Lebanon'
+        -- Asia (additional)
+        WHEN 'NP' THEN 'Nepal'
+        WHEN 'KH' THEN 'Cambodia'
+        WHEN 'MO' THEN 'Macao'
+        WHEN 'MV' THEN 'Maldives'
+        -- Europe (additional)
+        WHEN 'LT' THEN 'Lithuania'
+        WHEN 'BG' THEN 'Bulgaria'
+        WHEN 'IS' THEN 'Iceland'
+        WHEN 'MT' THEN 'Malta'
+        WHEN 'SK' THEN 'Slovakia'
+        WHEN 'LU' THEN 'Luxembourg'
+        WHEN 'GE' THEN 'Georgia'
+        WHEN 'JE' THEN 'Jersey'
+        WHEN 'XK' THEN 'Kosovo'
+        -- Americas (additional)
+        WHEN 'TT' THEN 'Trinidad and Tobago'
+        WHEN 'GY' THEN 'Guyana'
+        WHEN 'PR' THEN 'Puerto Rico'
+        WHEN 'EC' THEN 'Ecuador'
+        WHEN 'NI' THEN 'Nicaragua'
         -- Fallback: return code if unmapped (allows tracking gaps)
         ELSE COALESCE(geo_country_code, '(not set)')
     END AS geo_country,
