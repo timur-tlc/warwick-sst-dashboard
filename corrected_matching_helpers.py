@@ -230,6 +230,13 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     direct_df['hour'] = (direct_df['datetime'].dt.hour + 10) % 24  # UTC to AEST
     sst_df['hour'] = (sst_df['datetime'].dt.hour + 10) % 24
 
+    # Determine weekday (Mon-Fri) vs weekend (Sat-Sun)
+    # Need to shift to AEST first for accurate day-of-week
+    direct_df['datetime_aest'] = direct_df['datetime'] + pd.Timedelta(hours=10)
+    sst_df['datetime_aest'] = sst_df['datetime'] + pd.Timedelta(hours=10)
+    direct_df['is_weekday'] = direct_df['datetime_aest'].dt.dayofweek < 5  # Mon=0, Sun=6
+    sst_df['is_weekday'] = sst_df['datetime_aest'].dt.dayofweek < 5
+
     # Daily counts by category
     daily_both = direct_df[direct_df['session_category'] == 'Both'].groupby('date').size()
     daily_direct_only = direct_df[direct_df['session_category'] == 'Direct-only'].groupby('date').size()
@@ -257,6 +264,34 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     }).fillna(0).astype(int)
     hourly_df = hourly_df.reset_index().rename(columns={'index': 'hour'})
 
+    # Weekday hourly counts
+    weekday_direct = direct_df[direct_df['is_weekday']]
+    weekday_sst = sst_df[sst_df['is_weekday']]
+    hourly_weekday_both = weekday_direct[weekday_direct['session_category'] == 'Both'].groupby('hour').size()
+    hourly_weekday_direct_only = weekday_direct[weekday_direct['session_category'] == 'Direct-only'].groupby('hour').size()
+    hourly_weekday_sst_only = weekday_sst[weekday_sst['session_category'] == 'SST-only'].groupby('hour').size()
+
+    hourly_weekday_df = pd.DataFrame({
+        'Both': hourly_weekday_both,
+        'Direct-only': hourly_weekday_direct_only,
+        'SST-only': hourly_weekday_sst_only
+    }).fillna(0).astype(int)
+    hourly_weekday_df = hourly_weekday_df.reindex(range(24), fill_value=0).reset_index().rename(columns={'index': 'hour'})
+
+    # Weekend hourly counts
+    weekend_direct = direct_df[~direct_df['is_weekday']]
+    weekend_sst = sst_df[~sst_df['is_weekday']]
+    hourly_weekend_both = weekend_direct[weekend_direct['session_category'] == 'Both'].groupby('hour').size()
+    hourly_weekend_direct_only = weekend_direct[weekend_direct['session_category'] == 'Direct-only'].groupby('hour').size()
+    hourly_weekend_sst_only = weekend_sst[weekend_sst['session_category'] == 'SST-only'].groupby('hour').size()
+
+    hourly_weekend_df = pd.DataFrame({
+        'Both': hourly_weekend_both,
+        'Direct-only': hourly_weekend_direct_only,
+        'SST-only': hourly_weekend_sst_only
+    }).fillna(0).astype(int)
+    hourly_weekend_df = hourly_weekend_df.reindex(range(24), fill_value=0).reset_index().rename(columns={'index': 'hour'})
+
     return {
         'totals': {
             'both': both_count,
@@ -266,6 +301,8 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
         },
         'daily': daily_df,
         'hourly': hourly_df,
+        'hourly_weekday': hourly_weekday_df,
+        'hourly_weekend': hourly_weekend_df,
         'profiles': {
             'Both': {
                 'desktop_pct': (both_sst['device_category'] == 'desktop').sum() / len(both_sst) * 100,

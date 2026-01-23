@@ -348,6 +348,147 @@ def render_corrected_comparison_tab():
         {"**✅ Supports corporate hypothesis:** Direct-only is more concentrated in business hours." if biz_direct_pct > biz_both_pct + 3 else ""}
         """)
 
+    # Weekday vs Weekend hourly charts
+    st.markdown("---")
+    st.markdown("#### 📅 Weekday vs Weekend Hourly Patterns (CORRECTED)")
+    st.caption("Comparing Mon-Fri vs Sat-Sun session patterns by hour (AEST)")
+
+    hourly_weekday_df = data.get('hourly_weekday')
+    hourly_weekend_df = data.get('hourly_weekend')
+
+    if hourly_weekday_df is not None and hourly_weekend_df is not None:
+        # Weekday charts
+        st.markdown("##### Working Days (Mon-Fri)")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Absolute Sessions**")
+            weekday_melted = hourly_weekday_df.melt(id_vars=['hour'], var_name='Category', value_name='Sessions')
+            chart = alt.Chart(weekday_melted).mark_line(point=True).encode(
+                x=alt.X('hour:O', title='Hour (AEST)', axis=alt.Axis(values=list(range(0, 24, 2)))),
+                y=alt.Y('Sessions:Q', title='Sessions'),
+                color=alt.Color('Category:N',
+                    scale=alt.Scale(
+                        domain=['Both', 'SST-only', 'Direct-only'],
+                        range=['#9b59b6', '#2ecc71', '#3498db']
+                    ),
+                    legend=alt.Legend(title='Category')
+                ),
+                tooltip=['hour', 'Category', 'Sessions']
+            ).properties(height=250).configure_axis(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            ).configure_legend(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            )
+            st.altair_chart(chart, use_container_width=True)
+
+        with col2:
+            st.markdown("**Relative (% of category)**")
+            # Calculate percentages within each category
+            weekday_pct = hourly_weekday_df.copy()
+            for cat in ['Both', 'SST-only', 'Direct-only']:
+                total = weekday_pct[cat].sum()
+                if total > 0:
+                    weekday_pct[cat] = weekday_pct[cat] / total * 100
+            weekday_pct_melted = weekday_pct.melt(id_vars=['hour'], var_name='Category', value_name='% of Sessions')
+            chart = alt.Chart(weekday_pct_melted).mark_line(point=True).encode(
+                x=alt.X('hour:O', title='Hour (AEST)', axis=alt.Axis(values=list(range(0, 24, 2)))),
+                y=alt.Y('% of Sessions:Q', title='% of Category Sessions'),
+                color=alt.Color('Category:N',
+                    scale=alt.Scale(
+                        domain=['Both', 'SST-only', 'Direct-only'],
+                        range=['#9b59b6', '#2ecc71', '#3498db']
+                    ),
+                    legend=alt.Legend(title='Category')
+                ),
+                tooltip=['hour', 'Category', alt.Tooltip('% of Sessions:Q', format='.1f')]
+            ).properties(height=250).configure_axis(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            ).configure_legend(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            )
+            st.altair_chart(chart, use_container_width=True)
+
+        # Weekend charts
+        st.markdown("##### Non-Working Days (Sat-Sun)")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Absolute Sessions**")
+            weekend_melted = hourly_weekend_df.melt(id_vars=['hour'], var_name='Category', value_name='Sessions')
+            chart = alt.Chart(weekend_melted).mark_line(point=True).encode(
+                x=alt.X('hour:O', title='Hour (AEST)', axis=alt.Axis(values=list(range(0, 24, 2)))),
+                y=alt.Y('Sessions:Q', title='Sessions'),
+                color=alt.Color('Category:N',
+                    scale=alt.Scale(
+                        domain=['Both', 'SST-only', 'Direct-only'],
+                        range=['#9b59b6', '#2ecc71', '#3498db']
+                    ),
+                    legend=alt.Legend(title='Category')
+                ),
+                tooltip=['hour', 'Category', 'Sessions']
+            ).properties(height=250).configure_axis(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            ).configure_legend(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            )
+            st.altair_chart(chart, use_container_width=True)
+
+        with col2:
+            st.markdown("**Relative (% of category)**")
+            # Calculate percentages within each category
+            weekend_pct = hourly_weekend_df.copy()
+            for cat in ['Both', 'SST-only', 'Direct-only']:
+                total = weekend_pct[cat].sum()
+                if total > 0:
+                    weekend_pct[cat] = weekend_pct[cat] / total * 100
+            weekend_pct_melted = weekend_pct.melt(id_vars=['hour'], var_name='Category', value_name='% of Sessions')
+            chart = alt.Chart(weekend_pct_melted).mark_line(point=True).encode(
+                x=alt.X('hour:O', title='Hour (AEST)', axis=alt.Axis(values=list(range(0, 24, 2)))),
+                y=alt.Y('% of Sessions:Q', title='% of Category Sessions'),
+                color=alt.Color('Category:N',
+                    scale=alt.Scale(
+                        domain=['Both', 'SST-only', 'Direct-only'],
+                        range=['#9b59b6', '#2ecc71', '#3498db']
+                    ),
+                    legend=alt.Legend(title='Category')
+                ),
+                tooltip=['hour', 'Category', alt.Tooltip('% of Sessions:Q', format='.1f')]
+            ).properties(height=250).configure_axis(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            ).configure_legend(
+                labelFontSize=CHART_LABEL_SIZE,
+                titleFontSize=CHART_TITLE_SIZE
+            )
+            st.altair_chart(chart, use_container_width=True)
+
+        # Compare weekday vs weekend patterns
+        weekday_total = hourly_weekday_df[['Both', 'SST-only', 'Direct-only']].sum().sum()
+        weekend_total = hourly_weekend_df[['Both', 'SST-only', 'Direct-only']].sum().sum()
+
+        # Calculate business hours concentration for weekdays
+        weekday_biz = hourly_weekday_df[(hourly_weekday_df['hour'] >= 9) & (hourly_weekday_df['hour'] <= 17)]
+        weekday_biz_direct = weekday_biz['Direct-only'].sum() / hourly_weekday_df['Direct-only'].sum() * 100 if hourly_weekday_df['Direct-only'].sum() > 0 else 0
+        weekday_biz_both = weekday_biz['Both'].sum() / hourly_weekday_df['Both'].sum() * 100 if hourly_weekday_df['Both'].sum() > 0 else 0
+
+        st.info(f"""
+        **Weekday vs Weekend Summary:**
+        - Weekday sessions: **{weekday_total:,.0f}** ({weekday_total/(weekday_total+weekend_total)*100:.1f}%)
+        - Weekend sessions: **{weekend_total:,.0f}** ({weekend_total/(weekday_total+weekend_total)*100:.1f}%)
+
+        **Weekday Business Hours (9am-5pm):**
+        - Direct-only: **{weekday_biz_direct:.1f}%** during 9-5
+        - Both: **{weekday_biz_both:.1f}%** during 9-5
+        - {"**✅ Direct-only more concentrated in work hours**" if weekday_biz_direct > weekday_biz_both + 3 else "Similar distribution across categories"}
+        """)
+
     # Comparison table
     st.markdown("---")
     st.markdown("#### 📊 OLD vs NEW Categorization")
