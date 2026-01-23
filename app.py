@@ -301,6 +301,53 @@ def render_corrected_comparison_tab():
             display_df['Total'] = display_df['Both'] + display_df['SST-only'] + display_df['Direct-only']
             st.dataframe(display_df, use_container_width=True, hide_index=True)
 
+    # Hourly chart
+    st.markdown("---")
+    st.markdown("#### 🕐 Hourly Distribution (CORRECTED)")
+    st.caption("Sessions by hour of day (AEST) - aggregated across Jan 6-13")
+
+    hourly_df = data.get('hourly')
+    if hourly_df is not None and not hourly_df.empty:
+        # Melt for Altair
+        hourly_melted = hourly_df.melt(id_vars=['hour'], var_name='Category', value_name='Sessions')
+
+        chart = alt.Chart(hourly_melted).mark_line(point=True).encode(
+            x=alt.X('hour:O', title='Hour (AEST)', axis=alt.Axis(values=list(range(0, 24, 2)))),
+            y=alt.Y('Sessions:Q', title='Sessions'),
+            color=alt.Color('Category:N',
+                scale=alt.Scale(
+                    domain=['Both', 'SST-only', 'Direct-only'],
+                    range=['#9b59b6', '#2ecc71', '#3498db']
+                ),
+                legend=alt.Legend(title='Category')
+            ),
+            tooltip=['hour', 'Category', 'Sessions']
+        ).properties(height=300).configure_axis(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        ).configure_legend(
+            labelFontSize=CHART_LABEL_SIZE,
+            titleFontSize=CHART_TITLE_SIZE
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+        # Business hours analysis
+        business_hours = hourly_df[(hourly_df['hour'] >= 9) & (hourly_df['hour'] <= 17)]
+        off_hours = hourly_df[(hourly_df['hour'] < 9) | (hourly_df['hour'] > 17)]
+
+        biz_direct_pct = business_hours['Direct-only'].sum() / hourly_df['Direct-only'].sum() * 100
+        biz_sst_pct = business_hours['SST-only'].sum() / hourly_df['SST-only'].sum() * 100
+        biz_both_pct = business_hours['Both'].sum() / hourly_df['Both'].sum() * 100
+
+        st.info(f"""
+        **Business Hours (9am-5pm AEST) Concentration:**
+        - Direct-only: **{biz_direct_pct:.1f}%** during business hours
+        - SST-only: **{biz_sst_pct:.1f}%** during business hours
+        - Both: **{biz_both_pct:.1f}%** during business hours
+
+        {"**✅ Supports corporate hypothesis:** Direct-only is more concentrated in business hours." if biz_direct_pct > biz_both_pct + 3 else ""}
+        """)
+
     # Comparison table
     st.markdown("---")
     st.markdown("#### 📊 OLD vs NEW Categorization")

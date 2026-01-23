@@ -222,8 +222,13 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
 
     # Calculate daily breakdown for timeseries
     # Use Direct timestamps for date extraction (microseconds since epoch)
-    direct_df['date'] = pd.to_datetime(direct_df['session_start_ts'] // 1000000, unit='s').dt.date
-    sst_df['date'] = pd.to_datetime(sst_df['session_start_ts'] // 1000000, unit='s').dt.date
+    direct_df['datetime'] = pd.to_datetime(direct_df['session_start_ts'] // 1000000, unit='s')
+    sst_df['datetime'] = pd.to_datetime(sst_df['session_start_ts'] // 1000000, unit='s')
+    direct_df['date'] = direct_df['datetime'].dt.date
+    sst_df['date'] = sst_df['datetime'].dt.date
+    # Convert to AEST (UTC+10) for hour analysis
+    direct_df['hour'] = (direct_df['datetime'].dt.hour + 10) % 24  # UTC to AEST
+    sst_df['hour'] = (sst_df['datetime'].dt.hour + 10) % 24
 
     # Daily counts by category
     daily_both = direct_df[direct_df['session_category'] == 'Both'].groupby('date').size()
@@ -239,6 +244,19 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     daily_df.index = pd.to_datetime(daily_df.index)
     daily_df = daily_df.reset_index().rename(columns={'index': 'date'})
 
+    # Hourly counts by category (aggregated across all days)
+    hourly_both = direct_df[direct_df['session_category'] == 'Both'].groupby('hour').size()
+    hourly_direct_only = direct_df[direct_df['session_category'] == 'Direct-only'].groupby('hour').size()
+    hourly_sst_only = sst_df[sst_df['session_category'] == 'SST-only'].groupby('hour').size()
+
+    # Combine into a single dataframe
+    hourly_df = pd.DataFrame({
+        'Both': hourly_both,
+        'Direct-only': hourly_direct_only,
+        'SST-only': hourly_sst_only
+    }).fillna(0).astype(int)
+    hourly_df = hourly_df.reset_index().rename(columns={'index': 'hour'})
+
     return {
         'totals': {
             'both': both_count,
@@ -247,6 +265,7 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
             'total': total
         },
         'daily': daily_df,
+        'hourly': hourly_df,
         'profiles': {
             'Both': {
                 'desktop_pct': (both_sst['device_category'] == 'desktop').sum() / len(both_sst) * 100,
