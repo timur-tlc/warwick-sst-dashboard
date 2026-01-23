@@ -3,7 +3,7 @@
 **Purpose:** Streamlit dashboard for comparing SST vs Direct GA4 tracking data
 **Client:** Warwick Fabrics (warwick.com.au)
 **Last Updated:** 2026-01-23
-**Status:** ⚠️ MAJOR METHODOLOGY CORRECTION - Dashboard updated with corrected matching
+**Status:** ✅ PROJECT COMPLETE - Full dimension analysis with materialized cache
 
 ## Quick Start
 
@@ -20,17 +20,34 @@ warwick-dash  # Run from anywhere (uses ~/bin/warwick-dash script)
 | Component | Details |
 |-----------|---------|
 | Framework | Streamlit 1.40.0 |
-| Data Source | AWS Athena (`warwick_weave_sst_events.events`) + BigQuery (`analytics_375839889`) |
+| Data Source | Pre-computed parquet cache (844KB) or live Athena/BigQuery |
 | Deployment | Streamlit Community Cloud (auto-deploys on push to main) |
 | Live URL | https://warwick-dashboard.streamlit.app |
 
 ## Key Files
 
 - `app.py` - Main Streamlit application with corrected matching
-- `corrected_matching_helpers.py` - **NEW:** Fuzzy matching logic (timestamp+attribute based)
-- `athena_transformation_layer.sql` - Schema Alignment Layer (SAL) v3.5
+- `corrected_matching_helpers.py` - Fuzzy matching logic (timestamp+attribute based)
+- `materialize_matching.py` - Script to regenerate cache
+- `cache/` - Pre-computed parquet files for instant loading
+- `athena_transformation_layer.sql` - Schema Alignment Layer (SAL) v3.6
 - `requirements.txt` - Python dependencies
 - `.venv/` - Local virtual environment
+
+## Performance: Materialized Cache
+
+Dashboard loads instantly from pre-computed cache files (844KB total).
+
+**To regenerate cache** (if date range changes or data needs refresh):
+```bash
+source .venv/bin/activate && python materialize_matching.py
+```
+
+**Cache files:**
+- `cache/sst_sessions.parquet` - SST session data with categories
+- `cache/direct_sessions.parquet` - Direct session data with categories
+- `cache/daily.parquet`, `hourly.parquet`, `hourly_weekday.parquet`, `hourly_weekend.parquet`
+- `cache/metadata.json` - Totals and profiles
 
 ## ⚠️ CRITICAL DISCOVERY: ga_session_id Matching Flaw (2026-01-23)
 
@@ -89,41 +106,32 @@ for each SST session:
 
 | Metric | Value | Sessions |
 |--------|-------|----------|
-| Both (overlap) | 82.4% | 15,160 |
-| SST-Only (ad-blockers) | 9.9% | 1,827 |
-| Direct-Only (corporate) | 7.6% | 1,405 |
+| Both (overlap) | 82.6% | 15,180 |
+| SST-Only (ad-blockers) | 9.8% | 1,807 |
+| Direct-Only (corporate) | 7.5% | 1,385 |
 
-**Corporate Hypothesis - STILL VALIDATED ✅**
+**Complete Dimension Analysis: 35/36 dimensions differentiated**
 
-Direct-only sessions STILL show strong B2B profile (corrected numbers):
-- **83.1% Desktop** (vs 68.4% baseline) = +14.7pp ⬆️
-- **71.5% Windows** (vs 51.5% baseline) = +20.1pp ⬆️
-- **100% of Windows sessions are Desktop** (no Windows mobile/tablet exists)
-- χ² = 126.05, p < 0.0001 (highly significant)
+All dimensions show significant differentiation except Traffic Source (no data). Key findings:
 
-**SST-only shows similar profile** (80.2% desktop, 67.8% Windows), suggesting both "only" groups are corporate users blocked by different network policies.
+| Dimension | Both | SST-only | Direct-only | Finding |
+|-----------|------|----------|-------------|---------|
+| Desktop % | 68.5% | 79.7% | 84.1% | "Only" = corporate |
+| Windows % | 51.5% | 68.3% | 72.1% | "Only" = corporate |
+| Chrome % | 58.2% | 74.8% | 76.6% | Safari/Edge users in Both |
+| Australia % | 78.5% | 43.8% | 36.7% | International in "only" |
+| China % | 5.7% | 41.6% | 8.5% | Great Firewall → SST |
+| Zero Engagement % | 24.6% | 22.2% | 59.9% | Direct-only = bots? |
+| Events 2-5 % | 35.4% | 52.9% | 74.9% | "Only" = shallow |
+| Business Hrs (9-5) | 71.9% | 47.9% | 48.8% | "Only" ≠ work hours |
+| Weekday % | 84.7% | 94.7% | 94.9% | "Only" = weekday |
+| Peak Hour | 14:00 | 09:00 | 09:00 | "Only" peaks at 9am |
 
-**Conversion Rate Hypothesis - STILL VALIDATED ✅**
-
-Both "only" categories have lower purchase rates:
-
-| Category | Sessions | Purchase Rate |
-|----------|----------|---------------|
-| Both | 15,160 | **2.51%** |
-| Direct-only | 1,405 | **1.42%** (-1.09pp) |
-| SST-only | 1,827 | **1.64%** (-0.87pp) |
-
-## Temporal Alignment Analysis
-
-**Hourly correlation:** r = 0.915 (very strong)
-- SST-only and Direct-only sessions happen at the **same times of day**
-- Peak hours overlap (22:00-23:00 UTC)
-- Supports **technical blocking hypothesis** over behavioral differences
-
-**Weekday concentration:**
-- Direct-only: 85.2% weekday (vs 83.3% baseline)
-- SST-only: 79.1% weekday
-- +6.1pp difference validates corporate work-hours pattern
+**Key patterns:**
+- SST-only and Direct-only are similar to each other, both different from Both
+- Direct-only is extreme: 60% zero engagement, 75% shallow sessions
+- China accounts for 42% of SST-only (Great Firewall blocks google-analytics.com)
+- Vietnam/US over-represented in Direct-only
 
 ## Dashboard Features
 
@@ -133,11 +141,15 @@ Consistent across all charts:
 - **Green (#2ecc71)** = SST-only
 - **Blue (#3498db)** = Direct-only
 
-### Corrected Comparison Tab
-- Shows OLD vs NEW categorization side-by-side
-- Live fuzzy matching (cached for 1 hour)
-- Statistical validation of hypotheses
-- Methodology explanation in expander
+### Dashboard Contents
+- Session categorization metrics (Both/SST-only/Direct-only)
+- Daily timeseries chart (Australia only)
+- Hourly distribution chart (AEST, Australia only)
+- Weekday vs Weekend hourly patterns (absolute + relative %)
+- Complete 36-dimension analysis table
+- User profile comparisons (device, OS, browser, geo)
+- Engagement & conversion metrics
+- OLD vs NEW methodology comparison
 
 ## Critical Gotchas
 
@@ -186,7 +198,13 @@ Warwick's GA4 does NOT collect:
 
 First load after SSO refresh takes 30-60 seconds. Results are cached for 1 hour via `@st.cache_data(ttl=3600)`.
 
-## Schema Alignment Layer (SAL) v3.5
+**Better:** Use materialized cache - run `python materialize_matching.py` once, dashboard loads instantly.
+
+### 9. Timeseries Data is Australia-Only
+
+Daily, hourly, weekday/weekend charts are filtered to `geo_country == 'Australia'` to ensure AEST timezone analysis is meaningful. The dimension table includes all countries.
+
+## Schema Alignment Layer (SAL) v3.6
 
 **Purpose:** Transform SST dimension values to match BigQuery exactly.
 
@@ -229,6 +247,8 @@ aws cloudwatch get-metric-statistics \
 
 | Script | Purpose |
 |--------|---------|
+| `materialize_matching.py` | **Primary:** Generate cache for instant dashboard loading |
+| `corrected_matching_helpers.py` | Core fuzzy matching logic |
 | `corrected_analysis.py` | Full corrected categorization with profiles |
 | `pairwise_matching.py` | Detect same sessions with different IDs |
 | `session_id_pattern_check.py` | Analyze ID differences (proves 1-second granularity) |
