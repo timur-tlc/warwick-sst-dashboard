@@ -220,27 +220,31 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     # Calculate engagement time (convert to seconds)
     both_direct = direct_df[direct_df['session_category'] == 'Both']
 
-    # Calculate daily breakdown for timeseries
+    # Filter to Australia only for timeseries analysis
+    direct_df_au = direct_df[direct_df['geo_country'] == 'Australia'].copy()
+    sst_df_au = sst_df[sst_df['geo_country'] == 'Australia'].copy()
+
+    # Calculate daily breakdown for timeseries (Australia only)
     # Use Direct timestamps for date extraction (microseconds since epoch)
-    direct_df['datetime'] = pd.to_datetime(direct_df['session_start_ts'] // 1000000, unit='s')
-    sst_df['datetime'] = pd.to_datetime(sst_df['session_start_ts'] // 1000000, unit='s')
-    direct_df['date'] = direct_df['datetime'].dt.date
-    sst_df['date'] = sst_df['datetime'].dt.date
+    direct_df_au['datetime'] = pd.to_datetime(direct_df_au['session_start_ts'] // 1000000, unit='s')
+    sst_df_au['datetime'] = pd.to_datetime(sst_df_au['session_start_ts'] // 1000000, unit='s')
+    direct_df_au['date'] = direct_df_au['datetime'].dt.date
+    sst_df_au['date'] = sst_df_au['datetime'].dt.date
     # Convert to AEST (UTC+10) for hour analysis
-    direct_df['hour'] = (direct_df['datetime'].dt.hour + 10) % 24  # UTC to AEST
-    sst_df['hour'] = (sst_df['datetime'].dt.hour + 10) % 24
+    direct_df_au['hour'] = (direct_df_au['datetime'].dt.hour + 10) % 24  # UTC to AEST
+    sst_df_au['hour'] = (sst_df_au['datetime'].dt.hour + 10) % 24
 
     # Determine weekday (Mon-Fri) vs weekend (Sat-Sun)
     # Need to shift to AEST first for accurate day-of-week
-    direct_df['datetime_aest'] = direct_df['datetime'] + pd.Timedelta(hours=10)
-    sst_df['datetime_aest'] = sst_df['datetime'] + pd.Timedelta(hours=10)
-    direct_df['is_weekday'] = direct_df['datetime_aest'].dt.dayofweek < 5  # Mon=0, Sun=6
-    sst_df['is_weekday'] = sst_df['datetime_aest'].dt.dayofweek < 5
+    direct_df_au['datetime_aest'] = direct_df_au['datetime'] + pd.Timedelta(hours=10)
+    sst_df_au['datetime_aest'] = sst_df_au['datetime'] + pd.Timedelta(hours=10)
+    direct_df_au['is_weekday'] = direct_df_au['datetime_aest'].dt.dayofweek < 5  # Mon=0, Sun=6
+    sst_df_au['is_weekday'] = sst_df_au['datetime_aest'].dt.dayofweek < 5
 
-    # Daily counts by category
-    daily_both = direct_df[direct_df['session_category'] == 'Both'].groupby('date').size()
-    daily_direct_only = direct_df[direct_df['session_category'] == 'Direct-only'].groupby('date').size()
-    daily_sst_only = sst_df[sst_df['session_category'] == 'SST-only'].groupby('date').size()
+    # Daily counts by category (Australia only)
+    daily_both = direct_df_au[direct_df_au['session_category'] == 'Both'].groupby('date').size()
+    daily_direct_only = direct_df_au[direct_df_au['session_category'] == 'Direct-only'].groupby('date').size()
+    daily_sst_only = sst_df_au[sst_df_au['session_category'] == 'SST-only'].groupby('date').size()
 
     # Combine into a single dataframe
     daily_df = pd.DataFrame({
@@ -251,10 +255,10 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     daily_df.index = pd.to_datetime(daily_df.index)
     daily_df = daily_df.reset_index().rename(columns={'index': 'date'})
 
-    # Hourly counts by category (aggregated across all days)
-    hourly_both = direct_df[direct_df['session_category'] == 'Both'].groupby('hour').size()
-    hourly_direct_only = direct_df[direct_df['session_category'] == 'Direct-only'].groupby('hour').size()
-    hourly_sst_only = sst_df[sst_df['session_category'] == 'SST-only'].groupby('hour').size()
+    # Hourly counts by category (aggregated across all days, Australia only)
+    hourly_both = direct_df_au[direct_df_au['session_category'] == 'Both'].groupby('hour').size()
+    hourly_direct_only = direct_df_au[direct_df_au['session_category'] == 'Direct-only'].groupby('hour').size()
+    hourly_sst_only = sst_df_au[sst_df_au['session_category'] == 'SST-only'].groupby('hour').size()
 
     # Combine into a single dataframe
     hourly_df = pd.DataFrame({
@@ -264,9 +268,9 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     }).fillna(0).astype(int)
     hourly_df = hourly_df.reset_index().rename(columns={'index': 'hour'})
 
-    # Weekday hourly counts
-    weekday_direct = direct_df[direct_df['is_weekday']]
-    weekday_sst = sst_df[sst_df['is_weekday']]
+    # Weekday hourly counts (Australia only)
+    weekday_direct = direct_df_au[direct_df_au['is_weekday']]
+    weekday_sst = sst_df_au[sst_df_au['is_weekday']]
     hourly_weekday_both = weekday_direct[weekday_direct['session_category'] == 'Both'].groupby('hour').size()
     hourly_weekday_direct_only = weekday_direct[weekday_direct['session_category'] == 'Direct-only'].groupby('hour').size()
     hourly_weekday_sst_only = weekday_sst[weekday_sst['session_category'] == 'SST-only'].groupby('hour').size()
@@ -278,9 +282,9 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113'):
     }).fillna(0).astype(int)
     hourly_weekday_df = hourly_weekday_df.reindex(range(24), fill_value=0).reset_index().rename(columns={'index': 'hour'})
 
-    # Weekend hourly counts
-    weekend_direct = direct_df[~direct_df['is_weekday']]
-    weekend_sst = sst_df[~sst_df['is_weekday']]
+    # Weekend hourly counts (Australia only)
+    weekend_direct = direct_df_au[~direct_df_au['is_weekday']]
+    weekend_sst = sst_df_au[~sst_df_au['is_weekday']]
     hourly_weekend_both = weekend_direct[weekend_direct['session_category'] == 'Both'].groupby('hour').size()
     hourly_weekend_direct_only = weekend_direct[weekend_direct['session_category'] == 'Direct-only'].groupby('hour').size()
     hourly_weekend_sst_only = weekend_sst[weekend_sst['session_category'] == 'SST-only'].groupby('hour').size()

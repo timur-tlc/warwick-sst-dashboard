@@ -268,6 +268,7 @@ def render_corrected_comparison_tab():
     # Daily timeseries chart
     st.markdown("---")
     st.markdown("#### 📈 Daily Session Breakdown (CORRECTED)")
+    st.caption("Sessions by category over time - Jan 6-13, 2026 | **Australia only**")
 
     daily_df = data.get('daily')
     if daily_df is not None and not daily_df.empty:
@@ -304,7 +305,7 @@ def render_corrected_comparison_tab():
     # Hourly chart
     st.markdown("---")
     st.markdown("#### 🕐 Hourly Distribution (CORRECTED)")
-    st.caption("Sessions by hour of day (AEST) - aggregated across Jan 6-13")
+    st.caption("Sessions by hour of day (AEST) - aggregated across Jan 6-13 | **Australia only**")
 
     hourly_df = data.get('hourly')
     if hourly_df is not None and not hourly_df.empty:
@@ -351,7 +352,7 @@ def render_corrected_comparison_tab():
     # Weekday vs Weekend hourly charts
     st.markdown("---")
     st.markdown("#### 📅 Weekday vs Weekend Hourly Patterns (CORRECTED)")
-    st.caption("Comparing Mon-Fri vs Sat-Sun session patterns by hour (AEST)")
+    st.caption("Comparing Mon-Fri vs Sat-Sun session patterns by hour (AEST) | **Australia only**")
 
     hourly_weekday_df = data.get('hourly_weekday')
     hourly_weekend_df = data.get('hourly_weekend')
