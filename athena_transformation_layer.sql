@@ -13,7 +13,7 @@
 -- - device_operating_system (Windows/iOS/Macintosh/Android/Linux)
 -- - geo_country (full name, e.g., "Australia" not "AU")
 --
--- Version: 3.5 (2026-01-22) - Added 29 missing country code mappings
+-- Version: 3.9 (2026-02-04) - Improve device_brand with Client Hints model (Samsung, Google, etc.)
 -- ============================================================================
 
 CREATE OR REPLACE VIEW warwick_weave_sst_events.sst_events_transformed AS
@@ -37,13 +37,18 @@ WITH parsed_payload AS (
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.event_location.country') AS geo_country_code,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.event_location.region') AS geo_region,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.event_location.city') AS geo_city,
-        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.transaction_id') AS transaction_id,
-        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.value') AS ecommerce_value,
-        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.currency') AS ecommerce_currency,
+        COALESCE(json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.transaction_id'), json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.transaction_id')) AS transaction_id,
+        COALESCE(json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.value'), json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.value')) AS ecommerce_value,
+        COALESCE(json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.currency'), json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.ecommerce.currency')) AS ecommerce_currency,
+        json_extract(from_utf8(from_base64(raw_payload)), '$.items') AS items_json,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.source') AS traffic_source,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.medium') AS traffic_medium,
         json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.traffic_source.campaign') AS traffic_campaign,
-        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.engagement_time_msec') AS engagement_time_msec
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.engagement_time_msec') AS engagement_time_msec,
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.link_text') AS link_text,
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.link_url') AS link_url,
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.search_term') AS search_term,
+        json_extract_scalar(from_utf8(from_base64(raw_payload)), '$.client_hints.model') AS client_hints_model
     FROM warwick_weave_sst_events.events
 ),
 
@@ -142,6 +147,58 @@ SELECT
              AND user_agent NOT LIKE '%Safari/%' THEN 'Safari (in-app)'
         ELSE '(not set)'
     END AS device_browser,
+
+    -- =========================================================================
+    -- DEVICE BRAND (must match BigQuery device.mobile_brand_name)
+    -- GA4 uses a full device database (WURFL); this covers the major brands
+    -- visible in Warwick's traffic.
+    -- v3.9: Check Client Hints model first (Android Chrome sends this),
+    -- then fall back to User-Agent parsing (Safari/Firefox/older browsers).
+    -- Chrome UA reduction replaces Android models with "K", making UA
+    -- useless for brand detection on ~58% of Android traffic.
+    -- =========================================================================
+    CASE
+        -- Apple devices (iOS + macOS) — always identifiable from UA
+        WHEN user_agent LIKE '%iPhone%' OR user_agent LIKE '%iPad%' OR user_agent LIKE '%iPod%' OR user_agent LIKE '%Macintosh%' THEN 'Apple'
+        -- Desktop: Windows = Microsoft, Chrome OS = Google
+        WHEN user_agent LIKE '%Windows%' THEN 'Microsoft'
+        WHEN user_agent LIKE '%CrOS%' THEN 'Google'
+
+        -- Client Hints model (Android Chrome populates this)
+        WHEN client_hints_model IS NOT NULL AND client_hints_model != '' THEN
+            CASE
+                WHEN client_hints_model LIKE 'SM-%' OR client_hints_model LIKE 'Galaxy%' THEN 'Samsung'
+                WHEN client_hints_model LIKE 'Pixel%' THEN 'Google'
+                WHEN client_hints_model LIKE 'CPH%' OR client_hints_model LIKE 'RMX%' THEN 'Oppo'
+                WHEN client_hints_model LIKE 'moto%' OR client_hints_model LIKE 'Moto%' OR client_hints_model LIKE 'XT%' THEN 'Motorola'
+                WHEN client_hints_model LIKE 'LM-%' OR client_hints_model LIKE 'LG%' THEN 'LG'
+                WHEN client_hints_model LIKE 'V%' AND client_hints_model LIKE '%5G%' THEN 'Vivo'
+                WHEN client_hints_model LIKE '220%' OR client_hints_model LIKE '230%' OR client_hints_model LIKE '240%' THEN 'Xiaomi'
+                WHEN client_hints_model LIKE 'IN%' THEN 'Micromax'
+                WHEN client_hints_model LIKE 'Nokia%' THEN 'Nokia'
+                WHEN client_hints_model LIKE 'HUAWEI%' OR client_hints_model LIKE 'VOG-%' OR client_hints_model LIKE 'ELS-%' THEN 'Huawei'
+                WHEN client_hints_model LIKE 'SAMSUNG%' THEN 'Samsung'
+                WHEN client_hints_model LIKE 'Redmi%' OR client_hints_model LIKE 'POCO%' OR client_hints_model LIKE 'M2%' OR client_hints_model LIKE '2201%' OR client_hints_model LIKE '2210%' THEN 'Xiaomi'
+                WHEN client_hints_model LIKE 'OnePlus%' OR client_hints_model LIKE 'OPPO%' THEN 'Oppo'
+                WHEN client_hints_model LIKE 'Sony%' OR client_hints_model LIKE 'XQ-%' THEN 'Sony'
+                ELSE 'Android (other)'
+            END
+
+        -- Fallback: UA-based parsing for Safari/Firefox/older browsers (no Client Hints)
+        WHEN user_agent LIKE '%SamsungBrowser%' OR user_agent LIKE '%SM-%' OR user_agent LIKE '%Samsung%' OR user_agent LIKE '%SAMSUNG%' THEN 'Samsung'
+        WHEN user_agent LIKE '%Pixel%' OR user_agent LIKE '%Nexus%' THEN 'Google'
+        WHEN user_agent LIKE '%Huawei%' OR user_agent LIKE '%HUAWEI%' OR user_agent LIKE '%HMSCore%' THEN 'Huawei'
+        WHEN user_agent LIKE '%Xiaomi%' OR user_agent LIKE '%Redmi%' OR user_agent LIKE '%POCO%' OR user_agent LIKE '%Mi %' THEN 'Xiaomi'
+        WHEN user_agent LIKE '%OPPO%' OR user_agent LIKE '%OnePlus%' OR user_agent LIKE '%Realme%' OR user_agent LIKE '%RMX%' THEN 'Oppo'
+        WHEN user_agent LIKE '%Motorola%' OR user_agent LIKE '%moto %' THEN 'Motorola'
+        WHEN user_agent LIKE '%LG-%' OR user_agent LIKE '%LG/%' THEN 'LG'
+        WHEN user_agent LIKE '%Sony%' OR user_agent LIKE '%Xperia%' THEN 'Sony'
+        -- Generic Linux desktop
+        WHEN user_agent LIKE '%Linux%' AND user_agent NOT LIKE '%Android%' THEN '(not set)'
+        -- Remaining Android devices without identifiable brand
+        WHEN user_agent LIKE '%Android%' THEN '(not set)'
+        ELSE '(not set)'
+    END AS device_brand,
 
     -- =========================================================================
     -- COUNTRY (must match BigQuery geo.country)
@@ -274,13 +331,50 @@ SELECT
 
     -- Ecommerce
     transaction_id,
-    CAST(ecommerce_value AS DOUBLE) AS ecommerce_value,
+    TRY_CAST(ecommerce_value AS DOUBLE) AS ecommerce_value,
     ecommerce_currency,
+    json_format(items_json) AS items_json,
 
-    -- Traffic source
+    -- Traffic source (raw fields are always NULL - GTM server doesn't forward these)
     traffic_source,
     traffic_medium,
     traffic_campaign,
+
+    -- =========================================================================
+    -- SESSION DEFAULT CHANNEL GROUP (derived from page_referrer)
+    -- SST does not receive traffic_source/medium from the GA4 client tag.
+    -- This approximation uses the referring domain to classify channels.
+    -- Limitation: Cannot distinguish Paid Search from Organic Search,
+    -- or Paid Social from Organic Social (no UTM params in SST payload).
+    -- =========================================================================
+    CASE
+        -- Self-referral (internal navigation) — will be attributed at session level
+        WHEN page_referrer LIKE '%warwick.com.au%' OR page_referrer LIKE '%warwick.co.nz%' OR page_referrer LIKE '%weavehome.com.au%' THEN NULL
+        -- No referrer = Direct
+        WHEN page_referrer IS NULL OR page_referrer = '' THEN 'Direct'
+        -- Search engines → Organic Search
+        WHEN page_referrer LIKE '%google.%' AND page_referrer NOT LIKE '%mail.google.%' THEN 'Organic Search'
+        WHEN page_referrer LIKE '%bing.com%' THEN 'Organic Search'
+        WHEN page_referrer LIKE '%yahoo.%' THEN 'Organic Search'
+        WHEN page_referrer LIKE '%duckduckgo.com%' THEN 'Organic Search'
+        WHEN page_referrer LIKE '%ecosia.org%' THEN 'Organic Search'
+        WHEN page_referrer LIKE '%baidu.com%' THEN 'Organic Search'
+        WHEN page_referrer LIKE '%naver.com%' THEN 'Organic Search'
+        -- Social media → Organic Social
+        WHEN page_referrer LIKE '%facebook.com%' OR page_referrer LIKE '%fb.com%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%instagram.com%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%pinterest.com%' OR page_referrer LIKE '%pin.it%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%linkedin.com%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%twitter.com%' OR page_referrer LIKE '%t.co%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%youtube.com%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%reddit.com%' THEN 'Organic Social'
+        WHEN page_referrer LIKE '%tiktok.com%' THEN 'Organic Social'
+        -- Email providers → Email
+        WHEN page_referrer LIKE '%mail.google.com%' THEN 'Email'
+        WHEN page_referrer LIKE '%outlook.%' OR page_referrer LIKE '%office.%' OR page_referrer LIKE '%teams.%' THEN 'Email'
+        -- Everything else → Referral
+        ELSE 'Referral'
+    END AS session_default_channel_group_event,
 
     -- Synthetic event markers
     CASE WHEN event_name IN ('session_start', 'first_visit') THEN TRUE ELSE FALSE END AS is_synthetic_event,
@@ -294,6 +388,11 @@ SELECT
 
     -- Engagement time (from GA4 payload)
     CAST(engagement_time_msec AS BIGINT) AS engagement_time_msec,
+
+    -- Event parameters (for file_download, click, view_search_results)
+    link_text,
+    link_url,
+    search_term,
 
     -- Quality flag for filtering
     CASE
@@ -361,9 +460,12 @@ SELECT
     ARBITRARY(device_category) AS device_category,
     ARBITRARY(device_browser) AS device_browser,
     ARBITRARY(device_operating_system) AS device_operating_system,
+    ARBITRARY(device_brand) AS device_brand,
     ARBITRARY(geo_country) AS geo_country,
     ARBITRARY(geo_country_code) AS geo_country_code,
     ARBITRARY(site) AS site,
+    -- Session channel: first non-null channel event (by timestamp), fallback to Direct
+    COALESCE(MIN_BY(session_default_channel_group_event, timestamp), 'Direct') AS session_default_channel_group,
     COUNT(*) AS event_count,
     COUNT(CASE WHEN event_name = 'page_view' THEN 1 END) AS pageviews,
     COUNT(CASE WHEN event_name = 'purchase' THEN 1 END) AS purchases,
@@ -377,3 +479,32 @@ WHERE NOT is_synthetic_event
   AND is_likely_human
   AND ga_session_id IS NOT NULL
 GROUP BY ga_session_id, user_pseudo_id;
+
+
+-- ============================================================================
+-- VIEW 5: sst_ecommerce_items
+-- Item-level ecommerce data (brand, category, price, quantity)
+-- Unnests the items array from purchase and other ecommerce events
+-- ============================================================================
+
+CREATE OR REPLACE VIEW warwick_weave_sst_events.sst_ecommerce_items AS
+SELECT
+    timestamp,
+    event_name,
+    ga_session_id,
+    user_pseudo_id,
+    transaction_id,
+    ecommerce_value,
+    ecommerce_currency,
+    json_extract_scalar(item, '$.item_id') AS item_id,
+    json_extract_scalar(item, '$.item_name') AS item_name,
+    json_extract_scalar(item, '$.item_brand') AS item_brand,
+    json_extract_scalar(item, '$.item_category') AS item_category,
+    json_extract_scalar(item, '$.item_category2') AS item_category2,
+    json_extract_scalar(item, '$.item_category3') AS item_category3,
+    CAST(json_extract_scalar(item, '$.price') AS DOUBLE) AS price,
+    CAST(json_extract_scalar(item, '$.quantity') AS DOUBLE) AS quantity
+FROM warwick_weave_sst_events.sst_events_transformed
+CROSS JOIN UNNEST(CAST(json_parse(items_json) AS ARRAY(JSON))) AS t(item)
+WHERE items_json IS NOT NULL
+  AND is_likely_human;
