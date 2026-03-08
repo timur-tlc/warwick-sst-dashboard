@@ -2,6 +2,12 @@
 Helper functions for corrected session categorization.
 
 These replace the flawed ga_session_id-based matching with timestamp+attribute matching.
+
+Matching levels:
+- BASIC: device_category + geo_country + timestamp window (original)
+- ENHANCED: adds device_operating_system
+- STRICT: adds device_browser
+- LANDING: adds landing page (page_location) for highest confidence
 """
 
 import pandas as pd
@@ -12,6 +18,12 @@ import json
 from pathlib import Path
 
 CACHE_DIR = Path(__file__).parent / "cache"
+
+# Matching level constants
+MATCH_BASIC = 'basic'           # device_category + geo_country
+MATCH_ENHANCED = 'enhanced'     # + device_operating_system
+MATCH_STRICT = 'strict'         # + device_browser
+MATCH_LANDING = 'landing'       # + landing page
 
 
 def load_from_cache():
@@ -56,9 +68,17 @@ def load_from_cache():
         return None
 
 
-def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window_seconds=300):
+def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window_seconds=15,
+                         match_level=MATCH_BASIC, include_landing_page=False):
     """
     Perform fuzzy matching between SST and Direct sessions.
+
+    Args:
+        date_start: Start date in YYYYMMDD format
+        date_end: End date in YYYYMMDD format
+        time_window_seconds: Maximum time difference for matching (default 300 = 5 min)
+        match_level: One of MATCH_BASIC, MATCH_ENHANCED, MATCH_STRICT, MATCH_LANDING
+        include_landing_page: If True and match_level=MATCH_LANDING, fetches and matches on landing page
 
     Returns:
         dict with keys:
@@ -69,26 +89,43 @@ def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window
             - 'direct_df': DataFrame of Direct sessions with category
     """
 
-    print("Loading session data from both sources...")
+    print(f"Loading session data from both sources (match_level={match_level})...")
 
     # Load BigQuery (Direct) sessions
     bq_client = bigquery.Client(project="376132452327")
+
     bq_query = f"""
+    WITH session_events AS (
+        SELECT
+            CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING) as ga_session_id,
+            event_timestamp,
+            device.category as device_category,
+            device.operating_system as device_operating_system,
+            device.web_info.browser as device_browser,
+            geo.country as geo_country,
+            (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'session_traffic_source_last_click_source') as traffic_source,
+            (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') as page_location,
+            event_name,
+            (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'engagement_time_msec') as engagement_time_msec
+        FROM `analytics_375839889.events_*`
+        WHERE _TABLE_SUFFIX BETWEEN '{date_start}' AND '{date_end}'
+          AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') LIKE '%warwick.com.au%'
+    )
     SELECT
-        CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING) as ga_session_id,
+        ga_session_id,
         MIN(event_timestamp) as session_start_ts,
-        device.category as device_category,
-        device.operating_system as device_operating_system,
-        device.web_info.browser as device_browser,
-        geo.country as geo_country,
-        (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'session_traffic_source_last_click_source') as traffic_source,
+        ANY_VALUE(device_category) as device_category,
+        ANY_VALUE(device_operating_system) as device_operating_system,
+        ANY_VALUE(device_browser) as device_browser,
+        ANY_VALUE(geo_country) as geo_country,
+        ANY_VALUE(traffic_source) as traffic_source,
+        -- Get landing page (first page_location by timestamp)
+        ARRAY_AGG(page_location ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] as landing_page,
         COUNT(*) as event_count,
         MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) as has_purchase,
-        SUM((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'engagement_time_msec')) as engagement_time_msec
-    FROM `analytics_375839889.events_*`
-    WHERE _TABLE_SUFFIX BETWEEN '{date_start}' AND '{date_end}'
-      AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') LIKE '%warwick.com.au%'
-    GROUP BY 1, 3, 4, 5, 6, 7
+        SUM(engagement_time_msec) as engagement_time_msec
+    FROM session_events
+    GROUP BY 1
     HAVING ga_session_id IS NOT NULL
     """
 
@@ -118,6 +155,8 @@ def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window
         ARBITRARY(device_browser) as device_browser,
         ARBITRARY(geo_country) as geo_country,
         ARBITRARY(traffic_source) as traffic_source,
+        -- Get landing page (first page_location by timestamp)
+        MIN_BY(page_location, timestamp) as landing_page,
         COUNT(*) as event_count,
         MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) as has_purchase,
         SUM(CAST(engagement_time_msec AS BIGINT)) as engagement_time_msec
@@ -168,7 +207,7 @@ def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window
 
     sst_df = pd.DataFrame(athena_rows, columns=[
         'ga_session_id', 'session_start_ts', 'device_category', 'device_operating_system',
-        'device_browser', 'geo_country', 'traffic_source', 'event_count', 'has_purchase', 'engagement_time_msec'
+        'device_browser', 'geo_country', 'traffic_source', 'landing_page', 'event_count', 'has_purchase', 'engagement_time_msec'
     ])
     sst_df = sst_df.drop_duplicates(subset='ga_session_id', keep='first')
     sst_df['session_start_ts'] = pd.to_numeric(sst_df['session_start_ts'])
@@ -200,11 +239,43 @@ def fuzzy_match_sessions(date_start='20260106', date_end='20260113', time_window
         if len(candidates) == 0:
             continue
 
-        # Filter by device and country
+        # Filter by device and country (BASIC level)
         candidates = candidates[
             (candidates['device_category'] == sst_row['device_category']) &
             (candidates['geo_country'] == sst_row['geo_country'])
         ]
+
+        if len(candidates) == 0:
+            continue
+
+        # ENHANCED: add operating system matching
+        if match_level in (MATCH_ENHANCED, MATCH_STRICT, MATCH_LANDING):
+            os_matches = candidates[candidates['device_operating_system'] == sst_row['device_operating_system']]
+            if len(os_matches) > 0:
+                candidates = os_matches
+
+        # STRICT: add browser matching
+        if match_level in (MATCH_STRICT, MATCH_LANDING):
+            browser_matches = candidates[candidates['device_browser'] == sst_row['device_browser']]
+            if len(browser_matches) > 0:
+                candidates = browser_matches
+
+        # LANDING: add landing page matching
+        if match_level == MATCH_LANDING and 'landing_page' in candidates.columns:
+            sst_landing = sst_row.get('landing_page', '')
+            if sst_landing and sst_landing != '':
+                # Normalize URLs for comparison (remove query params, trailing slashes)
+                def normalize_url(url):
+                    if not url or url == '':
+                        return ''
+                    url = str(url).split('?')[0].rstrip('/')
+                    return url.lower()
+
+                sst_landing_norm = normalize_url(sst_landing)
+                candidates['landing_page_norm'] = candidates['landing_page'].apply(normalize_url)
+                landing_matches = candidates[candidates['landing_page_norm'] == sst_landing_norm]
+                if len(landing_matches) > 0:
+                    candidates = landing_matches
 
         if len(candidates) == 0:
             continue
@@ -352,6 +423,30 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113', use_
     }).fillna(0).astype(int)
     hourly_weekend_df = hourly_weekend_df.reindex(range(24), fill_value=0).reset_index().rename(columns={'index': 'hour'})
 
+    # Helper for safe division
+    def safe_pct(numerator, total):
+        return (numerator / total * 100) if total > 0 else 0.0
+
+    # Calculate profile metrics with division guards
+    def calc_profile(df, engagement_df=None):
+        n = len(df)
+        if n == 0:
+            return {
+                'desktop_pct': 0.0,
+                'windows_pct': 0.0,
+                'windows_and_desktop_pct': 0.0,
+                'purchase_rate': 0.0,
+                'avg_engagement_sec': 0.0
+            }
+        eng_df = engagement_df if engagement_df is not None else df
+        return {
+            'desktop_pct': safe_pct((df['device_category'] == 'desktop').sum(), n),
+            'windows_pct': safe_pct((df['device_operating_system'] == 'Windows').sum(), n),
+            'windows_and_desktop_pct': safe_pct(((df['device_category'] == 'desktop') & (df['device_operating_system'] == 'Windows')).sum(), n),
+            'purchase_rate': safe_pct(df['has_purchase'].astype(int).sum(), n),
+            'avg_engagement_sec': pd.to_numeric(eng_df['engagement_time_msec'], errors='coerce').fillna(0).mean() / 1000 if len(eng_df) > 0 else 0.0
+        }
+
     return {
         'totals': {
             'both': both_count,
@@ -364,27 +459,9 @@ def get_corrected_session_stats(date_start='20260106', date_end='20260113', use_
         'hourly_weekday': hourly_weekday_df,
         'hourly_weekend': hourly_weekend_df,
         'profiles': {
-            'Both': {
-                'desktop_pct': (both_sst['device_category'] == 'desktop').sum() / len(both_sst) * 100,
-                'windows_pct': (both_sst['device_operating_system'] == 'Windows').sum() / len(both_sst) * 100,
-                'windows_and_desktop_pct': ((both_sst['device_category'] == 'desktop') & (both_sst['device_operating_system'] == 'Windows')).sum() / len(both_sst) * 100,
-                'purchase_rate': both_sst['has_purchase'].astype(int).sum() / len(both_sst) * 100,
-                'avg_engagement_sec': pd.to_numeric(both_direct['engagement_time_msec'], errors='coerce').fillna(0).mean() / 1000
-            },
-            'SST-only': {
-                'desktop_pct': (sst_only_sessions['device_category'] == 'desktop').sum() / len(sst_only_sessions) * 100,
-                'windows_pct': (sst_only_sessions['device_operating_system'] == 'Windows').sum() / len(sst_only_sessions) * 100,
-                'windows_and_desktop_pct': ((sst_only_sessions['device_category'] == 'desktop') & (sst_only_sessions['device_operating_system'] == 'Windows')).sum() / len(sst_only_sessions) * 100,
-                'purchase_rate': sst_only_sessions['has_purchase'].astype(int).sum() / len(sst_only_sessions) * 100,
-                'avg_engagement_sec': pd.to_numeric(sst_only_sessions['engagement_time_msec'], errors='coerce').fillna(0).mean() / 1000
-            },
-            'Direct-only': {
-                'desktop_pct': (direct_only_sessions['device_category'] == 'desktop').sum() / len(direct_only_sessions) * 100,
-                'windows_pct': (direct_only_sessions['device_operating_system'] == 'Windows').sum() / len(direct_only_sessions) * 100,
-                'windows_and_desktop_pct': ((direct_only_sessions['device_category'] == 'desktop') & (direct_only_sessions['device_operating_system'] == 'Windows')).sum() / len(direct_only_sessions) * 100,
-                'purchase_rate': direct_only_sessions['has_purchase'].astype(int).sum() / len(direct_only_sessions) * 100,
-                'avg_engagement_sec': pd.to_numeric(direct_only_sessions['engagement_time_msec'], errors='coerce').fillna(0).mean() / 1000
-            }
+            'Both': calc_profile(both_sst, both_direct),
+            'SST-only': calc_profile(sst_only_sessions),
+            'Direct-only': calc_profile(direct_only_sessions)
         },
         'dataframes': {
             'sst': sst_df,

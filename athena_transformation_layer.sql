@@ -13,7 +13,7 @@
 -- - device_operating_system (Windows/iOS/Macintosh/Android/Linux)
 -- - geo_country (full name, e.g., "Australia" not "AU")
 --
--- Version: 3.9 (2026-02-04) - Improve device_brand with Client Hints model (Samsung, Google, etc.)
+-- Version: 3.10 (2026-03-01) - Map geo_region to full names (AU/NZ), infer Weave brand for NULL item_brand in Weave-exclusive categories
 -- ============================================================================
 
 CREATE OR REPLACE VIEW warwick_weave_sst_events.sst_events_transformed AS
@@ -313,7 +313,48 @@ SELECT
         ELSE COALESCE(geo_country_code, '(not set)')
     END AS geo_country,
 
-    geo_region,
+    -- =========================================================================
+    -- REGION (must match BigQuery geo.region)
+    -- BigQuery uses full names; SST has abbreviations from CloudFront.
+    -- AU = 2-3 letter state codes, NZ = 3-letter ISO codes,
+    -- international = numeric ISO 3166-2 codes (left as-is).
+    -- =========================================================================
+    CASE
+        -- Australia (states/territories)
+        WHEN geo_country_code = 'AU' THEN CASE geo_region
+            WHEN 'NSW' THEN 'New South Wales'
+            WHEN 'VIC' THEN 'Victoria'
+            WHEN 'QLD' THEN 'Queensland'
+            WHEN 'WA' THEN 'Western Australia'
+            WHEN 'SA' THEN 'South Australia'
+            WHEN 'TAS' THEN 'Tasmania'
+            WHEN 'ACT' THEN 'Australian Capital Territory'
+            WHEN 'NT' THEN 'Northern Territory'
+            ELSE COALESCE(geo_region, '(not set)')
+        END
+        -- New Zealand (ISO 3166-2:NZ codes)
+        WHEN geo_country_code = 'NZ' THEN CASE geo_region
+            WHEN 'AUK' THEN 'Auckland'
+            WHEN 'BOP' THEN 'Bay of Plenty'
+            WHEN 'CAN' THEN 'Canterbury'
+            WHEN 'GIS' THEN 'Gisborne'
+            WHEN 'HKB' THEN 'Hawke''s Bay'
+            WHEN 'MBH' THEN 'Marlborough'
+            WHEN 'MWT' THEN 'Manawatu-Wanganui'
+            WHEN 'NSN' THEN 'Nelson'
+            WHEN 'NTL' THEN 'Northland'
+            WHEN 'OTA' THEN 'Otago'
+            WHEN 'STL' THEN 'Southland'
+            WHEN 'TAS' THEN 'Tasman'
+            WHEN 'TKI' THEN 'Taranaki'
+            WHEN 'WGN' THEN 'Wellington'
+            WHEN 'WKO' THEN 'Waikato'
+            WHEN 'WTC' THEN 'West Coast'
+            ELSE COALESCE(geo_region, '(not set)')
+        END
+        -- All other countries: pass through raw code
+        ELSE COALESCE(geo_region, '(not set)')
+    END AS geo_region,
     geo_city,
     user_agent,
     page_location,
@@ -498,10 +539,20 @@ SELECT
     ecommerce_currency,
     json_extract_scalar(item, '$.item_id') AS item_id,
     json_extract_scalar(item, '$.item_name') AS item_name,
-    json_extract_scalar(item, '$.item_brand') AS item_brand,
+    -- Infer Weave brand for items in Weave-exclusive categories where item_brand is missing.
+    -- ~75% of Weave revenue has NULL item_brand due to dataLayer bug (see gotcha #38).
+    -- These categories (Cushions, Bed Sheets, Floor Rugs, Throws, Cushion Inners) are
+    -- exclusively Weave products — Warwick only sells fabric (Upholstery/Drapery).
+    CASE
+        WHEN json_extract_scalar(item, '$.item_brand') IS NULL
+             AND json_extract_scalar(item, '$.item_category') IN ('Cushions', 'Bed Sheets', 'Floor Rugs', 'Throws', 'Cushion Inners')
+        THEN 'Weave'
+        ELSE json_extract_scalar(item, '$.item_brand')
+    END AS item_brand,
     json_extract_scalar(item, '$.item_category') AS item_category,
     json_extract_scalar(item, '$.item_category2') AS item_category2,
     json_extract_scalar(item, '$.item_category3') AS item_category3,
+    json_extract_scalar(item, '$.item_variant') AS item_variant,
     CAST(json_extract_scalar(item, '$.price') AS DOUBLE) AS price,
     CAST(json_extract_scalar(item, '$.quantity') AS DOUBLE) AS quantity
 FROM warwick_weave_sst_events.sst_events_transformed

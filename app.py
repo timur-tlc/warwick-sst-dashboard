@@ -753,6 +753,91 @@ def render_corrected_comparison_tab():
     - This suggests research/browsing sessions from B2B users, not purchase intent
     """)
 
+    # Engagement Time CDF Chart
+    st.markdown("---")
+    st.markdown("#### 📈 Engagement Time Distribution (Cumulative)")
+    st.caption("Shows what percentage of sessions have engagement time ≤ X seconds")
+
+    # Get engagement times by category
+    import numpy as np
+
+    sst_df = data['dataframes']['sst']
+    direct_df = data['dataframes']['direct']
+
+    both_eng = pd.to_numeric(sst_df[sst_df['session_category'] == 'Both']['engagement_time_msec'], errors='coerce').fillna(0) / 1000
+    sst_only_eng = pd.to_numeric(sst_df[sst_df['session_category'] == 'SST-only']['engagement_time_msec'], errors='coerce').fillna(0) / 1000
+    direct_only_eng = pd.to_numeric(direct_df[direct_df['session_category'] == 'Direct-only']['engagement_time_msec'], errors='coerce').fillna(0) / 1000
+
+    # Build CDF data for Altair
+    cdf_data = []
+    for eng_data, category in [(both_eng, 'Both'), (sst_only_eng, 'SST-only'), (direct_only_eng, 'Direct-only')]:
+        sorted_data = np.sort(eng_data.values)
+        cumulative = np.arange(1, len(sorted_data) + 1) / len(sorted_data) * 100
+        # Sample to reduce data points for performance (every nth point)
+        step = max(1, len(sorted_data) // 500)
+        for i in range(0, len(sorted_data), step):
+            if sorted_data[i] <= 300:  # Cap at 5 minutes for readability
+                cdf_data.append({
+                    'Engagement Time (s)': sorted_data[i],
+                    'Cumulative %': cumulative[i],
+                    'Category': category
+                })
+        # Always include the last point at 300s if we have data beyond
+        if len(sorted_data) > 0 and sorted_data[-1] > 300:
+            pct_at_300 = (sorted_data <= 300).sum() / len(sorted_data) * 100
+            cdf_data.append({
+                'Engagement Time (s)': 300,
+                'Cumulative %': pct_at_300,
+                'Category': category
+            })
+
+    cdf_df = pd.DataFrame(cdf_data)
+
+    cdf_chart = alt.Chart(cdf_df).mark_line(strokeWidth=2).encode(
+        x=alt.X('Engagement Time (s):Q', title='Engagement Time (seconds)', scale=alt.Scale(domain=[0, 300])),
+        y=alt.Y('Cumulative %:Q', title='Cumulative % of Sessions', scale=alt.Scale(domain=[0, 100])),
+        color=alt.Color('Category:N',
+            scale=alt.Scale(
+                domain=['Both', 'SST-only', 'Direct-only'],
+                range=['#9b59b6', '#2ecc71', '#3498db']
+            ),
+            legend=alt.Legend(title='Category')
+        ),
+        tooltip=['Category', alt.Tooltip('Engagement Time (s):Q', format='.1f'), alt.Tooltip('Cumulative %:Q', format='.1f')]
+    ).properties(height=350).configure_axis(
+        labelFontSize=CHART_LABEL_SIZE,
+        titleFontSize=CHART_TITLE_SIZE
+    ).configure_legend(
+        labelFontSize=CHART_LABEL_SIZE,
+        titleFontSize=CHART_TITLE_SIZE
+    )
+
+    st.altair_chart(cdf_chart, use_container_width=True)
+
+    # Key stats
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        median_both = np.median(both_eng)
+        zero_both = (both_eng == 0).mean() * 100
+        st.metric("Both - Median", f"{median_both:.1f}s")
+        st.caption(f"Zero engagement: {zero_both:.1f}%")
+    with col2:
+        median_sst = np.median(sst_only_eng)
+        zero_sst = (sst_only_eng == 0).mean() * 100
+        st.metric("SST-only - Median", f"{median_sst:.1f}s")
+        st.caption(f"Zero engagement: {zero_sst:.1f}%")
+    with col3:
+        median_direct = np.median(direct_only_eng)
+        zero_direct = (direct_only_eng == 0).mean() * 100
+        st.metric("Direct-only - Median", f"{median_direct:.1f}s")
+        st.caption(f"Zero engagement: {zero_direct:.1f}%")
+
+    st.info("""
+    **Interpretation:** Direct-only sessions (blue) have minimal engagement - 50% are under 0.3 seconds.
+    This is consistent with prefetch/prerender hits that never become real visits.
+    Both (purple) shows a long tail of genuinely engaged users.
+    """)
+
     # Complete Dimension Analysis Table
     st.markdown("---")
     st.markdown("#### 📋 Complete Dimension Analysis")

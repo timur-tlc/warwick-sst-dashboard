@@ -20,8 +20,8 @@ def materialize_session_data(date_start='20260106', date_end='20260113'):
     # Create cache directory
     CACHE_DIR.mkdir(exist_ok=True)
 
-    # Run the full matching
-    stats = get_corrected_session_stats(date_start, date_end)
+    # Run the full matching (bypass cache to regenerate fresh data)
+    stats = get_corrected_session_stats(date_start, date_end, use_cache=False)
 
     # Save the dataframes
     sst_df = stats['dataframes']['sst']

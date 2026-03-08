@@ -12,6 +12,18 @@ venv/
 .vscode/
 *.swp
 
+# Tooling
+.playwright-mcp/
+
+# Office files
+*.xlsx
+*.xls
+*.docx
+*.pptx
+
+# Drafts
+email_draft.txt
+
 # Verification output (contains session-level data)
 transformation_verification.csv
 direct_only_profile.csv

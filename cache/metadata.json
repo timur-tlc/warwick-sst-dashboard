@@ -1,31 +1,31 @@
 {
   "totals": {
-    "both": 15180,
-    "sst_only": 1807,
-    "direct_only": 1385,
-    "total": 18372
+    "both": 15072,
+    "sst_only": 1915,
+    "direct_only": 1493,
+    "total": 18480
   },
   "profiles": {
     "Both": {
-      "desktop_pct": 68.49143610013175,
-      "windows_pct": 51.548089591567845,
-      "windows_and_desktop_pct": 51.548089591567845,
-      "purchase_rate": 2.5625823451910406,
-      "avg_engagement_sec": 129.10768992094862
+      "desktop_pct": 68.24575371549894,
+      "windows_pct": 51.43975583864119,
+      "windows_and_desktop_pct": 51.43975583864119,
+      "purchase_rate": 2.5809447983014864,
+      "avg_engagement_sec": 130.2861662022293
     },
     "SST-only": {
-      "desktop_pct": 79.69009407858329,
-      "windows_pct": 68.28998339789707,
-      "windows_and_desktop_pct": 68.28998339789707,
-      "purchase_rate": 1.715550636413946,
-      "avg_engagement_sec": 78.53624128389596
+      "desktop_pct": 80.6266318537859,
+      "windows_pct": 68.35509138381201,
+      "windows_and_desktop_pct": 68.35509138381201,
+      "purchase_rate": 1.618798955613577,
+      "avg_engagement_sec": 88.97043185378591
     },
     "Direct-only": {
-      "desktop_pct": 84.11552346570397,
-      "windows_pct": 72.05776173285199,
-      "windows_and_desktop_pct": 72.05776173285199,
-      "purchase_rate": 1.371841155234657,
-      "avg_engagement_sec": 48.826156678700364
+      "desktop_pct": 83.72404554588077,
+      "windows_pct": 71.73476222371065,
+      "windows_and_desktop_pct": 71.73476222371065,
+      "purchase_rate": 1.2056262558606832,
+      "avg_engagement_sec": 61.31575686537173
     }
   },
   "date_start": "20260106",
