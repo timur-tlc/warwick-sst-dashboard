@@ -2,8 +2,8 @@
 
 **Purpose:** SST vs Direct GA4 tracking comparison and Looker Studio reporting
 **Client:** Warwick Fabrics (warwick.com.au)
-**Last Updated:** 2026-03-03
-**Status:** Looker Studio SST report live. BigQuery: 214K sessions, 3.37M events, 13.5K items. SAL v3.10.
+**Last Updated:** 2026-03-08
+**Status:** Looker Studio SST report live. BigQuery: 235K sessions, 3.7M events, 14.7K items. SAL v3.10. Weekly automated export live (Step Functions + Lambda).
 
 ## Analysis Summary
 
@@ -25,6 +25,7 @@ Prerequisites: `aws sso login --profile warwick`
 - `materialize_matching.py` - Regenerate cache (contiguous date ranges only)
 - `athena_transformation_layer.sql` - SAL v3.10
 - `bigquery_views.sql` - BigQuery `_ga4` view definitions (reference/version control)
+- `lambda/` - Automated BQ export Lambda (handler.py, Dockerfile). Deployed via OpenTofu in `warwick-sst-infrastructure`.
 - `cache/` - Pre-computed parquet files (8 days Jan 6-13)
 
 ## Materialized Cache
@@ -138,7 +139,6 @@ GTM-NX6WWZM is Weave (Shopify), NOT Warwick.
 ## Next Steps
 
 1. **Fix report audit issues** — See [`docs/REPORT_AUDIT.md`](docs/REPORT_AUDIT.md) (16 items, 4 critical)
-2. **Set up scheduled BigQuery refresh** — Automate weekly Athena → BigQuery sync (currently manual: `python export_to_bigquery.py`)
 3. **DataLayer cleanup** — Tony + dev team: `item_brand` split (brand vs treatments) + missing Weave brand tags
 4. **Search spam mitigation** — Block CJK search requests at WAF/application level. See `docs/SEARCH_SPAM_RECOMMENDATION.md`
 5. **Staff traffic exclusion** — Tony to provide office IP(s). See gotcha #37
@@ -146,6 +146,33 @@ GTM-NX6WWZM is Weave (Shopify), NOT Warwick.
 7. **Unify AU and NZ properties**
 8. **GTM hostname filter** — Block futuret3ch clone traffic. See gotcha #39/41
 9. **Page 6 variant colour fix** — Tony to change dimension to `itemVariant`. See gotcha #40
+
+## Automated BigQuery Export
+
+Weekly export runs every Monday 08:00 AEST via Step Functions + Lambda. See [`docs/BQ_EXPORT_AUTOMATION.md`](docs/BQ_EXPORT_AUTOMATION.md) for full details.
+
+- **Schedule:** EventBridge `cron(0 21 ? * SUN *)` (Mon 08:00 AEST)
+- **State Machine:** `warwick-weave-sst-bq-export`
+- **Lambda:** `warwick-weave-sst-bq-export` (container image in ECR)
+- **Notifications:** SNS → `timur@thelightscollective.agency`
+- **Infrastructure:** OpenTofu in `warwick-sst-infrastructure`, `bq-export.tf`
+
+**Manual trigger:**
+```bash
+aws stepfunctions start-execution --profile warwick --region ap-southeast-2 \
+  --state-machine-arn arn:aws:states:ap-southeast-2:025066271340:stateMachine:warwick-weave-sst-bq-export \
+  --input '{}'
+```
+
+**Update Lambda code:** Rebuild image in `lambda/`, push to ECR, then update function:
+```bash
+cd lambda && docker buildx build --platform linux/amd64 --provenance=false --output type=docker -t warwick-bq-export:latest .
+docker tag warwick-bq-export:latest 025066271340.dkr.ecr.ap-southeast-2.amazonaws.com/warwick-weave-sst-bq-export:latest
+docker push 025066271340.dkr.ecr.ap-southeast-2.amazonaws.com/warwick-weave-sst-bq-export:latest
+aws lambda update-function-code --profile warwick --region ap-southeast-2 \
+  --function-name warwick-weave-sst-bq-export \
+  --image-uri 025066271340.dkr.ecr.ap-southeast-2.amazonaws.com/warwick-weave-sst-bq-export:latest
+```
 
 ## Looker Studio Integration
 
