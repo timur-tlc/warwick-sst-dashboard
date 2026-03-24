@@ -4,9 +4,9 @@
 -- This file is for version control and reference only.
 
 -- ============================================================
--- VIEW: sessions_ga4
+-- VIEW: sessions_ga4_all (both AU + NZ)
 -- ============================================================
-CREATE OR REPLACE VIEW `376132452327.sst_events.sessions_ga4` AS
+CREATE OR REPLACE VIEW `376132452327.sst_events.sessions_ga4_all` AS
 
 SELECT
     CAST(s.ga_session_id AS STRING) AS sessionId,
@@ -106,6 +106,7 @@ LEFT JOIN (
         COALESCE(SUM(engagement_time_msec), 0) / 1000.0 AS engagement_time_sec,
         MAX(CASE WHEN event_name = 'scroll' THEN 1 ELSE 0 END) AS has_scroll
     FROM `376132452327.sst_events.events`
+    WHERE NOT CONTAINS_SUBSTR(COALESCE(page_location, ''), 'futuret3ch')
     GROUP BY ga_session_id, user_pseudo_id
 ) eng
 ON s.ga_session_id = eng.ga_session_id
@@ -128,12 +129,13 @@ LEFT JOIN (
 ) cjk
 ON s.ga_session_id = cjk.ga_session_id
 AND s.user_pseudo_id = cjk.user_pseudo_id
+WHERE s.site IN ('AU', 'NZ')
 ;
 
 -- ============================================================
--- VIEW: events_ga4
+-- VIEW: events_ga4_all (both AU + NZ)
 -- ============================================================
-CREATE OR REPLACE VIEW `376132452327.sst_events.events_ga4` AS
+CREATE OR REPLACE VIEW `376132452327.sst_events.events_ga4_all` AS
 
 SELECT
     e.event_name AS eventName,
@@ -232,22 +234,26 @@ LEFT JOIN (
         user_pseudo_id,
         COALESCE(SUM(engagement_time_msec), 0) / 1000.0 AS engagement_time_sec
     FROM `376132452327.sst_events.events`
+    WHERE NOT CONTAINS_SUBSTR(COALESCE(page_location, ''), 'futuret3ch')
     GROUP BY ga_session_id, user_pseudo_id
 ) eng
 ON CAST(e.ga_session_id AS STRING) = eng.ga_session_id
 AND e.user_pseudo_id = eng.user_pseudo_id
+WHERE NOT CONTAINS_SUBSTR(COALESCE(e.page_location, ''), 'futuret3ch')
+AND e.site IN ('AU', 'NZ')
 ;
 
 -- ============================================================
--- VIEW: items_ga4
+-- VIEW: items_ga4_all (both AU + NZ)
 -- ============================================================
-CREATE OR REPLACE VIEW `376132452327.sst_events.items_ga4` AS
+CREATE OR REPLACE VIEW `376132452327.sst_events.items_ga4_all` AS
 
 SELECT
     i.date AS date,
     i.event_name AS eventName,
     CAST(i.ga_session_id AS STRING) AS sessionId,
     i.user_pseudo_id AS userPseudoId,
+    COALESCE(s.site, 'Other') AS site,
     i.transaction_id AS transactionId,
     CAST(i.ecommerce_value AS FLOAT64) AS purchaseRevenue,
     i.ecommerce_currency AS currency,
@@ -369,5 +375,38 @@ SELECT
     END AS weaveSize
 
 FROM `376132452327.sst_events.items` i
+LEFT JOIN (
+    SELECT DISTINCT ga_session_id, user_pseudo_id, site
+    FROM `376132452327.sst_events.sessions`
+) s
+ON CAST(i.ga_session_id AS STRING) = s.ga_session_id
+AND i.user_pseudo_id = s.user_pseudo_id
+WHERE COALESCE(s.site, 'Other') IN ('AU', 'NZ')
 ;
+
+-- ============================================================
+-- Site-specific wrapper views
+-- Base _ga4 views contain both AU + NZ. These filter by site.
+-- sessions_ga4 is used by existing AU dashboards (kept as AU-only alias).
+-- ============================================================
+
+-- AU wrappers (sessions_ga4 IS the AU view — other dashboards depend on it)
+CREATE OR REPLACE VIEW `376132452327.sst_events.sessions_ga4` AS
+SELECT * FROM `376132452327.sst_events.sessions_ga4_all` WHERE site = 'AU';
+
+CREATE OR REPLACE VIEW `376132452327.sst_events.events_ga4` AS
+SELECT * FROM `376132452327.sst_events.events_ga4_all` WHERE site = 'AU';
+
+CREATE OR REPLACE VIEW `376132452327.sst_events.items_ga4` AS
+SELECT * FROM `376132452327.sst_events.items_ga4_all` WHERE site = 'AU';
+
+-- NZ wrappers
+CREATE OR REPLACE VIEW `376132452327.sst_events.sessions_ga4_nz` AS
+SELECT * FROM `376132452327.sst_events.sessions_ga4_all` WHERE site = 'NZ';
+
+CREATE OR REPLACE VIEW `376132452327.sst_events.events_ga4_nz` AS
+SELECT * FROM `376132452327.sst_events.events_ga4_all` WHERE site = 'NZ';
+
+CREATE OR REPLACE VIEW `376132452327.sst_events.items_ga4_nz` AS
+SELECT * FROM `376132452327.sst_events.items_ga4_all` WHERE site = 'NZ';
 

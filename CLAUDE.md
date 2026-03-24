@@ -1,9 +1,9 @@
 # Warwick Dashboard
 
 **Purpose:** SST vs Direct GA4 tracking comparison and Looker Studio reporting
-**Client:** Warwick Fabrics (warwick.com.au)
-**Last Updated:** 2026-03-08
-**Status:** Looker Studio SST report live. BigQuery: 235K sessions, 3.7M events, 14.7K items. SAL v3.10. Weekly automated export live (Step Functions + Lambda).
+**Client:** Warwick Fabrics (warwick.com.au / warwick.co.nz)
+**Last Updated:** 2026-03-17
+**Status:** Looker Studio SST reports live (AU + NZ). BigQuery: 397K sessions (265K AU + 132K NZ), 4.87M events, 16.6K items (through Mar 17). SAL v3.10. Weekly automated export live (Step Functions + Lambda). Hostname filter deployed (GTM + Athena + BQ). Staff IP filter in GA4 Testing mode.
 
 ## Analysis Summary
 
@@ -24,7 +24,7 @@ Prerequisites: `aws sso login --profile warwick`
 - `corrected_matching_helpers.py` - Fuzzy matching logic
 - `materialize_matching.py` - Regenerate cache (contiguous date ranges only)
 - `athena_transformation_layer.sql` - SAL v3.10
-- `bigquery_views.sql` - BigQuery `_ga4` view definitions (reference/version control)
+- `bigquery_views.sql` - BigQuery view definitions: `_all` (both sites), `_ga4` (AU), `_nz` (NZ)
 - `lambda/` - Automated BQ export Lambda (handler.py, Dockerfile). Deployed via OpenTofu in `warwick-sst-infrastructure`.
 - `cache/` - Pre-computed parquet files (8 days Jan 6-13)
 
@@ -48,7 +48,7 @@ Levels: `MATCH_BASIC` (device+country, default), `MATCH_ENHANCED` (+OS), `MATCH_
 
 ## Critical Gotchas
 
-Full reference (43 items): [`docs/GOTCHAS.md`](docs/GOTCHAS.md). Most important:
+Full reference (44 items): [`docs/GOTCHAS.md`](docs/GOTCHAS.md). Most important:
 
 ### Fuzzy Matching Only (Gotcha #1)
 
@@ -80,7 +80,7 @@ Transforms SST dimensions to match BigQuery. Views:
 | `sst_sessions_daily` | Daily aggregates |
 | `sst_comparison_ready` | Filtered events for AU Direct comparison |
 | `sst_sessions` | Session-level rollup |
-| `sst_ecommerce_items` | Item-level ecommerce (infers Weave brand for NULL brands in Weave-exclusive categories) |
+| `sst_ecommerce_items` | Item-level ecommerce with `site` field (infers Weave brand for NULL brands in Weave-exclusive categories) |
 
 Match rates: Device/browser/OS 98%+, Geo 96.5%.
 
@@ -122,6 +122,14 @@ END
 
 GTM-NX6WWZM is Weave (Shopify), NOT Warwick.
 
+**GA4 Measurement IDs (SST):**
+| Measurement ID | Property |
+|---------------|----------|
+| G-Y0RSKRWP87 | Warwick AU - SST |
+| G-H8L20K011G | Warwick NZ - SST |
+
+Both flow through the same SST server container (GTM-5L7LCRZ5) to S3. The Athena `sst_events_transformed` WHERE clause filters on both.
+
 ## Lambda & Infrastructure
 
 | Component | Details |
@@ -141,11 +149,14 @@ GTM-NX6WWZM is Weave (Shopify), NOT Warwick.
 1. **Fix report audit issues** — See [`docs/REPORT_AUDIT.md`](docs/REPORT_AUDIT.md) (16 items, 4 critical)
 3. **DataLayer cleanup** — Tony + dev team: `item_brand` split (brand vs treatments) + missing Weave brand tags
 4. **Search spam mitigation** — Block CJK search requests at WAF/application level. See `docs/SEARCH_SPAM_RECOMMENDATION.md`
-5. **Staff traffic exclusion** — Tony to provide office IP(s). See gotcha #37
+5. ~~**Staff traffic exclusion**~~ — **GA4 Direct: DONE (Testing mode).** 10 office IP ranges added 2026-03-16. Verify in 24-48h then activate. SST IP filter still TODO. See gotcha #44
 6. **Finalise documentation and Git repo**
 7. **Unify AU and NZ properties**
-8. **GTM hostname filter** — Block futuret3ch clone traffic. See gotcha #39/41
+8. ~~**GTM hostname filter**~~ — **DONE 2026-03-16.** All three layers deployed (GTM triggers, Athena SAL, BQ views). See gotcha #39/41
 9. **Page 6 variant colour fix** — Tony to change dimension to `itemVariant`. See gotcha #40
+10. **Staff traffic exclusion (SST)** — Add office IP CIDR filtering to `sst_events_transformed` WHERE clause. See gotcha #44
+11. ~~**Deploy BigQuery views**~~ — **DONE 2026-03-17.** `events_ga4` (site filter), `items_ga4` (site via sessions JOIN) deployed. NZ Looker Studio report live.
+12. **Rebuild Lambda Docker image** — `handler.py` updated with `site` in ITEMS_QUERY, needs Docker rebuild + ECR push. Until then, items BQ table gets `site` via `items_ga4` view JOIN (works but slower).
 
 ## Automated BigQuery Export
 
@@ -178,7 +189,18 @@ aws lambda update-function-code --profile warwick --region ap-southeast-2 \
 
 See [`docs/LOOKER_STUDIO.md`](docs/LOOKER_STUDIO.md) for setup, BigQuery views, gotchas, data refresh.
 
-**BigQuery Dataset:** `376132452327.sst_events` (tables: `sessions` 214K, `events` 3.37M, `items` 13.5K + `_ga4` views)
+**BigQuery Dataset:** `376132452327.sst_events` (tables: `sessions` 397K, `events` 4.87M, `items` 16.6K)
+
+**View architecture:**
+| View | Purpose |
+|------|---------|
+| `sessions_ga4_all` / `events_ga4_all` / `items_ga4_all` | Both AU + NZ, complex logic (JOINs, region mapping, brand parsing) |
+| `sessions_ga4` / `events_ga4` / `items_ga4` | AU-only wrappers (`WHERE site = 'AU'`). **Existing dashboards depend on these — do not rename.** |
+| `sessions_ga4_nz` / `events_ga4_nz` / `items_ga4_nz` | NZ-only wrappers (`WHERE site = 'NZ'`). Used by NZ Looker Studio report. |
+
+**Looker Studio reports:**
+- **AU:** `sessions_ga4` (Reusable), `events_ga4` + `items_ga4` (Embedded)
+- **NZ:** `sessions_ga4_nz` + `events_ga4_nz` + `items_ga4_nz` (all Embedded). NZ has zero purchases — ecommerce pages show "No data" (confirmed in GA4 Direct too).
 
 ## Deploying SAL
 

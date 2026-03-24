@@ -107,6 +107,7 @@ SELECT
     event_name,
     ga_session_id,
     user_pseudo_id,
+    site,
     transaction_id,
     ecommerce_value,
     ecommerce_currency,

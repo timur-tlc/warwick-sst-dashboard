@@ -444,7 +444,9 @@ SELECT
     END AS is_likely_human
 
 FROM with_bot_detection
-WHERE measurement_id = 'G-Y0RSKRWP87';
+WHERE measurement_id IN ('G-Y0RSKRWP87', 'G-H8L20K011G')
+  AND (page_location LIKE 'https://warwick.com.au%' OR page_location LIKE 'https://www.warwick.com.au%'
+    OR page_location LIKE 'https://warwick.co.nz%' OR page_location LIKE 'https://www.warwick.co.nz%');
 
 
 -- ============================================================================
@@ -534,6 +536,7 @@ SELECT
     event_name,
     ga_session_id,
     user_pseudo_id,
+    site,
     transaction_id,
     ecommerce_value,
     ecommerce_currency,

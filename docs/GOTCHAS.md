@@ -211,18 +211,19 @@ GA4 internal traffic rule not configured. Tony needs to provide office IP(s). Fi
 
 ## 39. futuret3ch.com.au — Cloned Warwick Content
 
-Clone of warwick.com.au at `www.futuret3ch.com.au/warwicks/` with Warwick's GTM tags still embedded. 170+ SST events polluting analytics. **Fix:** Add hostname condition to GA4 tag trigger in `GTM-P8LRDK2` — only fire on `warwick\.com\.au|warwick\.co\.nz`. See also gotcha #41.
+Clone of warwick.com.au at `www.futuret3ch.com.au/warwicks/` with Warwick's GTM tags still embedded. 379 SST events (including waybackmachinedownloader scraper URLs containing both `warwick.com.au` and `futuret3ch` in the path). **FIXED 2026-03-16:** All three layers now block this traffic. See gotcha #41.
 
 ## 40. Page 6 Variant Colour Chart Uses Wrong Dimension
 
 Uses `weaveSize` instead of `itemVariant`. Tony's fix — Looker Studio UI change only.
 
-## 41. GA4 Has No Hostname Filter — Use GTM Instead
+## 41. Hostname Filtering — Three Layers
 
-Options to block unauthorized domain traffic:
-1. **GTM trigger condition (recommended):** `Page Hostname matches RegEx warwick\.com\.au|warwick\.co\.nz` on GA4 tag in `GTM-P8LRDK2`
-2. **Server container check:** Hostname validation in `GTM-5L7LCRZ5`
-3. **Post-collection filter:** `WHERE page_location NOT LIKE '%futuret3ch%'` in views
+**ALL FIXED 2026-03-16.** Three layers block unauthorized domain traffic:
+
+1. **GTM trigger (deployed):** Replaced `Initialization - All Pages` with hostname-restricted triggers on both GA4 config tags (Direct + SST) in `GTM-P8LRDK2`. Regex: `^(www\.)?warwick\.com\.au$`. Verified in Preview mode.
+2. **Athena SAL (deployed):** Positive hostname filter on `sst_events_transformed`: `page_location LIKE 'https://warwick.com.au%'` (+ www, + .co.nz variants). Blocks futuret3ch, waybackmachine scraper, and any future clones. All downstream views/exports inherit.
+3. **BigQuery views (updated in code):** `sessions_ga4` filters `site IN ('AU', 'NZ')`. `events_ga4` excludes futuret3ch via `CONTAINS_SUBSTR`. Deploy to BQ when next re-creating views.
 
 ## 42. Export Script Must Update All Three BigQuery Tables
 
@@ -231,3 +232,26 @@ Options to block unauthorized domain traffic:
 ## 43. GA4 BigQuery Export Has No Historical Backfill
 
 GA4 BigQuery export only captures data from the day it's enabled. For historical data, use GA4 Data API or GA4 Looker Studio connector.
+
+## 44. Staff Traffic — GA4 Internal Traffic Filter
+
+**Added 2026-03-16. Status: Testing** — traffic tagged but not yet excluded.
+
+10 Warwick office IP ranges configured as internal traffic rules on GA4 Direct property (G-EP4KTC47K3). Filter in Testing mode — check `Test data filter name` dimension in Explorations to verify, then switch to Active.
+
+| Site | CIDR |
+|------|------|
+| Collingwood HQ | 14.203.70.160/29 |
+| Collingwood Showroom | 115.70.167.88/29 |
+| Somerton | 115.70.189.72/29 |
+| Derrimut | 115.70.188.32/29 |
+| Sydney | 220.233.98.16/29 |
+| Brisbane | 115.70.226.32/29 |
+| Gold Coast | 14.201.235.112/29 |
+| Adelaide | 110.175.84.16/29 |
+| Perth | 27.33.174.56/29 |
+| Canberra | 203.129.22.107/32 |
+
+Source: `warwick-sst-infrastructure/docs/archive/public-IPs-202603.xlsx`
+
+**SST equivalent not yet applied.** The SST pipeline has `ip_address` in raw data — same CIDRs can be added to `sst_events_transformed` WHERE clause when ready.
