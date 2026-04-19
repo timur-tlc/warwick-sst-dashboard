@@ -2,8 +2,8 @@
 
 **Purpose:** SST vs Direct GA4 tracking comparison and Looker Studio reporting
 **Client:** Warwick Fabrics (warwick.com.au / warwick.co.nz)
-**Last Updated:** 2026-03-17
-**Status:** Looker Studio SST reports live (AU + NZ). BigQuery: 397K sessions (265K AU + 132K NZ), 4.87M events, 16.6K items (through Mar 17). SAL v3.10. Weekly automated export live (Step Functions + Lambda). Hostname filter deployed (GTM + Athena + BQ). Staff IP filter in GA4 Testing mode.
+**Last Updated:** 2026-04-09
+**Status:** Looker Studio SST reports live (AU + NZ). BigQuery: 483K sessions (329K AU + 154K NZ), 6.25M events, 22.8K items (through Apr 8). SAL v3.10. Weekly automated export live (Step Functions + Lambda). Lambda ephemeral storage increased to 10 GB (2026-04-09) after events CSV outgrew 3 GB limit. Hostname filter deployed (GTM + Athena + BQ). Staff IP filter in GA4 Testing mode.
 
 ## Analysis Summary
 
@@ -147,16 +147,14 @@ Both flow through the same SST server container (GTM-5L7LCRZ5) to S3. The Athena
 ## Next Steps
 
 1. **Fix report audit issues** — See [`docs/REPORT_AUDIT.md`](docs/REPORT_AUDIT.md) (16 items, 4 critical)
-3. **DataLayer cleanup** — Tony + dev team: `item_brand` split (brand vs treatments) + missing Weave brand tags
-4. **Search spam mitigation** — Block CJK search requests at WAF/application level. See `docs/SEARCH_SPAM_RECOMMENDATION.md`
-5. ~~**Staff traffic exclusion**~~ — **GA4 Direct: DONE (Testing mode).** 10 office IP ranges added 2026-03-16. Verify in 24-48h then activate. SST IP filter still TODO. See gotcha #44
-6. **Finalise documentation and Git repo**
-7. **Unify AU and NZ properties**
-8. ~~**GTM hostname filter**~~ — **DONE 2026-03-16.** All three layers deployed (GTM triggers, Athena SAL, BQ views). See gotcha #39/41
-9. **Page 6 variant colour fix** — Tony to change dimension to `itemVariant`. See gotcha #40
-10. **Staff traffic exclusion (SST)** — Add office IP CIDR filtering to `sst_events_transformed` WHERE clause. See gotcha #44
-11. ~~**Deploy BigQuery views**~~ — **DONE 2026-03-17.** `events_ga4` (site filter), `items_ga4` (site via sessions JOIN) deployed. NZ Looker Studio report live.
-12. **Rebuild Lambda Docker image** — `handler.py` updated with `site` in ITEMS_QUERY, needs Docker rebuild + ECR push. Until then, items BQ table gets `site` via `items_ga4` view JOIN (works but slower).
+2. **DataLayer cleanup** — Tony + dev team: `item_brand` split (brand vs treatments) + missing Weave brand tags
+3. **Search spam mitigation** — Block CJK search requests at WAF/application level. See `docs/SEARCH_SPAM_RECOMMENDATION.md`
+4. **Staff traffic exclusion (SST)** — Add office IP CIDR filtering to `sst_events_transformed` WHERE clause. GA4 Direct done (Testing mode since 2026-03-16). See gotcha #44
+5. **Page 6 variant colour fix** — Tony to change dimension to `itemVariant`. See gotcha #40
+6. **Unify AU and NZ properties**
+7. **Rebuild Lambda Docker image** — `handler.py` updated with `site` in ITEMS_QUERY, needs Docker rebuild + ECR push. Until then, items BQ table gets `site` via `items_ga4` view JOIN (works but slower).
+8. **GCP billing setup** — Trial expires ~2026-04-16. Tony/Nicole to add Warwick credit card. Cost ~$0-2/month (3.2 GB storage within free tier, growing ~1 GB/month).
+9. **Finalise documentation and Git repo**
 
 ## Automated BigQuery Export
 
@@ -165,7 +163,7 @@ Weekly export runs every Monday 08:00 AEST via Step Functions + Lambda. See [`do
 - **Schedule:** EventBridge `cron(0 21 ? * SUN *)` (Mon 08:00 AEST)
 - **State Machine:** `warwick-weave-sst-bq-export`
 - **Lambda:** `warwick-weave-sst-bq-export` (container image in ECR)
-- **Notifications:** SNS → `timur@thelightscollective.agency`
+- **Notifications:** SNS → `timur@thelightscollective.agency` + `tony@thelightscollective.agency` (re-subscribed 2026-04-09 — previous subscriptions were never confirmed)
 - **Infrastructure:** OpenTofu in `warwick-sst-infrastructure`, `bq-export.tf`
 
 **Manual trigger:**
@@ -189,7 +187,7 @@ aws lambda update-function-code --profile warwick --region ap-southeast-2 \
 
 See [`docs/LOOKER_STUDIO.md`](docs/LOOKER_STUDIO.md) for setup, BigQuery views, gotchas, data refresh.
 
-**BigQuery Dataset:** `376132452327.sst_events` (tables: `sessions` 397K, `events` 4.87M, `items` 16.6K)
+**BigQuery Dataset:** `376132452327.sst_events` (tables: `sessions` 483K, `events` 6.25M, `items` 22.8K)
 
 **View architecture:**
 | View | Purpose |
@@ -199,8 +197,18 @@ See [`docs/LOOKER_STUDIO.md`](docs/LOOKER_STUDIO.md) for setup, BigQuery views, 
 | `sessions_ga4_nz` / `events_ga4_nz` / `items_ga4_nz` | NZ-only wrappers (`WHERE site = 'NZ'`). Used by NZ Looker Studio report. |
 
 **Looker Studio reports:**
-- **AU:** `sessions_ga4` (Reusable), `events_ga4` + `items_ga4` (Embedded)
-- **NZ:** `sessions_ga4_nz` + `events_ga4_nz` + `items_ga4_nz` (all Embedded). NZ has zero purchases — ecommerce pages show "No data" (confirmed in GA4 Direct too).
+- **AU:** `sessions_ga4` (Reusable), `events_ga4` + `items_ga4` (Embedded), `warwick.com.au` GA4 Direct (Reusable, 13 charts)
+- **NZ:** Created 2026-03-24 by copying AU report and using **Edit Connection** to reconnect each data source to `_nz` tables. NZ has zero purchases — ecommerce pages show "No data" (confirmed in GA4 Direct too).
+
+**Looker Studio calculated fields** (must exist on each data source for charts to work):
+- `sessions_ga4`: `averagePurchaseRevenueExCuttings` = `SUM(purchaseRevenue) / SUM(ecommercePurchasesExCuttings)`, `Purchase conv. rate` = `SUM(ecommercePurchases) / SUM(sessions)`
+- `events_ga4`: `Average session duration` = `SUM(engagementTimeMsec) / SUM(sessions) / 1000`
+- `items_ga4`: none
+
+**Copying Looker Studio reports (NZ from AU):**
+- Do NOT swap data sources in the copy dialog — field IDs won't match between independently created sources.
+- Instead: copy with same sources, then **Edit Connection** on each data source to point to the `_nz` table. This preserves field IDs and matches by column name.
+- NZ calculated fields must use `SUM()` wrappers (e.g. `SUM(x) / SUM(y)` not `x / y`) to force metric type, because NZ has zero purchase data and Looker Studio infers dimensions from all-zero columns.
 
 ## Deploying SAL
 
