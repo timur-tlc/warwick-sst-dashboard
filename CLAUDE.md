@@ -2,8 +2,8 @@
 
 **Purpose:** SST vs Direct GA4 tracking comparison and Looker Studio reporting
 **Client:** Warwick Fabrics (warwick.com.au / warwick.co.nz)
-**Last Updated:** 2026-04-09
-**Status:** Looker Studio SST reports live (AU + NZ). BigQuery: 483K sessions (329K AU + 154K NZ), 6.25M events, 22.8K items (through Apr 8). SAL v3.10. Weekly automated export live (Step Functions + Lambda). Lambda ephemeral storage increased to 10 GB (2026-04-09) after events CSV outgrew 3 GB limit. Hostname filter deployed (GTM + Athena + BQ). Staff IP filter in GA4 Testing mode.
+**Last Updated:** 2026-05-27
+**Status:** Looker Studio SST reports live (AU + NZ). NZ report rebuilt 2026-05-27 (handles Reusable source swap properly). BigQuery: 605K sessions (424K AU + 182K NZ), 8.41M events, 32.8K items (through May 24). SAL v3.10. Weekly automated export running clean (last refresh Mon May 25). Lambda ephemeral storage at 10 GB. Hostname filter deployed (GTM + Athena + BQ). Staff IP filter in GA4 Testing mode. GCP billing active.
 
 ## Analysis Summary
 
@@ -153,7 +153,7 @@ Both flow through the same SST server container (GTM-5L7LCRZ5) to S3. The Athena
 5. **Page 6 variant colour fix** — Tony to change dimension to `itemVariant`. See gotcha #40
 6. **Unify AU and NZ properties**
 7. **Rebuild Lambda Docker image** — `handler.py` updated with `site` in ITEMS_QUERY, needs Docker rebuild + ECR push. Until then, items BQ table gets `site` via `items_ga4` view JOIN (works but slower).
-8. **GCP billing setup** — Trial expires ~2026-04-16. Tony/Nicole to add Warwick credit card. Cost ~$0-2/month (3.2 GB storage within free tier, growing ~1 GB/month).
+8. **Fix Total Users metric on NZ + events_ga4** — Replace `SUM(totalUsers)` with `COUNT_DISTINCT(userPseudoId)` (Text type). AU `sessions_ga4` done 2026-05-05.
 9. **Finalise documentation and Git repo**
 
 ## Automated BigQuery Export
@@ -187,7 +187,9 @@ aws lambda update-function-code --profile warwick --region ap-southeast-2 \
 
 See [`docs/LOOKER_STUDIO.md`](docs/LOOKER_STUDIO.md) for setup, BigQuery views, gotchas, data refresh.
 
-**BigQuery Dataset:** `376132452327.sst_events` (tables: `sessions` 483K, `events` 6.25M, `items` 22.8K)
+**BigQuery Dataset:** `376132452327.sst_events` (tables: `sessions` 605K, `events` 8.41M, `items` 32.8K)
+
+**GA4 Direct BQ exports** (same project): `analytics_375839889` (AU, `G-EP4KTC47K3`, warwick.com.au), `analytics_377689605` (NZ, warwick.co.nz). Daily `events_YYYYMMDD` tables. Useful for SST-vs-Direct user/session reconciliation queries.
 
 **View architecture:**
 | View | Purpose |
@@ -197,18 +199,21 @@ See [`docs/LOOKER_STUDIO.md`](docs/LOOKER_STUDIO.md) for setup, BigQuery views, 
 | `sessions_ga4_nz` / `events_ga4_nz` / `items_ga4_nz` | NZ-only wrappers (`WHERE site = 'NZ'`). Used by NZ Looker Studio report. |
 
 **Looker Studio reports:**
-- **AU:** `sessions_ga4` (Reusable), `events_ga4` + `items_ga4` (Embedded), `warwick.com.au` GA4 Direct (Reusable, 13 charts)
-- **NZ:** Created 2026-03-24 by copying AU report and using **Edit Connection** to reconnect each data source to `_nz` tables. NZ has zero purchases — ecommerce pages show "No data" (confirmed in GA4 Direct too).
+- **AU:** [`Warwick AU SST Report`](https://datastudio.google.com/reporting/c1163e9e-adc7-4bd7-bd7a-fae2d17d1ffa) — `sessions_ga4` (Reusable), `events_ga4` + `items_ga4` (Embedded), `warwick.com.au` GA4 Direct (Reusable, 13 charts)
+- **NZ:** Rebuilt 2026-05-27 (previous version created 2026-03-24). NZ now has real ecommerce activity (April 2026: 27,439 sessions, 632 orders, $208K revenue) — earlier "zero purchases" note is obsolete.
 
 **Looker Studio calculated fields** (must exist on each data source for charts to work):
 - `sessions_ga4`: `averagePurchaseRevenueExCuttings` = `SUM(purchaseRevenue) / SUM(ecommercePurchasesExCuttings)`, `Purchase conv. rate` = `SUM(ecommercePurchases) / SUM(sessions)`
 - `events_ga4`: `Average session duration` = `SUM(engagementTimeMsec) / SUM(sessions) / 1000`
 - `items_ga4`: none
 
+**Total Users metric:** Use `COUNT_DISTINCT(userPseudoId)` — NOT `SUM(totalUsers)`. The `totalUsers` column is hardcoded to `1` per row in both `sessions_ga4` (line 88) and `events_ga4` (line 220), so summing it equals the row count, not the user count. AU fixed 2026-05-05; NZ + any `events_ga4` charts still need the same fix. Set the field's Data type to Text (the values are SST hashes like `Dd8Dlt...=.1765529137`, not numeric).
+
 **Copying Looker Studio reports (NZ from AU):**
-- Do NOT swap data sources in the copy dialog — field IDs won't match between independently created sources.
-- Instead: copy with same sources, then **Edit Connection** on each data source to point to the `_nz` table. This preserves field IDs and matches by column name.
-- NZ calculated fields must use `SUM()` wrappers (e.g. `SUM(x) / SUM(y)` not `x / y`) to force metric type, because NZ has zero purchase data and Looker Studio infers dimensions from all-zero columns.
+- In the Copy dialog, do NOT swap data sources — keep all defaults so field IDs are preserved. Click Copy Report.
+- **Embedded** sources (events_ga4, items_ga4) are copied independently for the new report — safe to **EDIT** in place, swap BQ table to `_nz`, click Reconnect → Apply. AU report unaffected.
+- **Reusable** sources (sessions_ga4) are NOT duplicated by Copy Report — both reports point to the same shared source. EDITing one breaks the other. Workaround: **DUPLICATE** the Reusable from the new report's data source manager (creates an Embedded copy), edit the copy to point to `_nz`, then rebind each chart via the right panel data-source dropdown (component-level swap). Finally REMOVE the original Reusable from the new report.
+- NZ calculated fields may need `SUM()` wrappers (e.g. `SUM(x) / SUM(y)` not `x / y`) to force metric type when columns are all-zero — historically a problem for NZ but less so now that NZ has real ecommerce data.
 
 ## Deploying SAL
 
