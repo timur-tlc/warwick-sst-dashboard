@@ -5,6 +5,21 @@
 **Last Updated:** 2026-05-27
 **Status:** Looker Studio SST reports live (AU + NZ). NZ report rebuilt 2026-05-27 (handles Reusable source swap properly). BigQuery: 605K sessions (424K AU + 182K NZ), 8.41M events, 32.8K items (through May 24). SAL v3.10. Weekly automated export running clean (last refresh Mon May 25). Lambda ephemeral storage at 10 GB. Hostname filter deployed (GTM + Athena + BQ). Staff IP filter in GA4 Testing mode. GCP billing active.
 
+## Where we left off
+_Last updated: 2026-06-07 (seeded from project status + git log — refine on next session)_
+
+### Open threads
+- None blocking. Looker Studio SST reports live (AU + NZ); weekly automated BQ export running clean (last refresh ~Mon May 25).
+
+### Recent decisions
+- NZ Looker Studio report rebuilt 2026-05-27 to handle the Reusable-source swap properly.
+- Reporting moved off the Streamlit `app.py` (legacy) to Looker Studio.
+- Keep SST: it captures higher-quality traffic (82.2% overlap; Direct-only mostly automated/prefetch).
+
+### Next actions
+- None queued — resume from the next Warwick reporting request.
+- Prereq for any data work: `aws sso login --profile warwick`.
+
 ## Analysis Summary
 
 SST captures higher-quality traffic. 82.2% overlap, Direct-only is mostly automated/prefetch (38.4% zero engagement). Keep SST. Details: [`docs/ANALYSIS_FINDINGS.md`](docs/ANALYSIS_FINDINGS.md). Parameters: 13 normal days (Jan 6-13, Jan 21-25), warwick.com.au only, fuzzy matching ±15s + device_category + geo_country.
